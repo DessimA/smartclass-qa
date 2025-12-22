@@ -128,17 +128,37 @@ fi
 log_info "4. Empacotando e Atualizando Lambda..."
 
 cd lambda
+
+log_info "Instalando dependências de produção da Lambda..."
+# O --silent evita poluir o log, mas mostra erros se ocorrerem.
+# O --production garante que apenas as dependências de produção sejam instaladas.
+npm install --production --silent
+
+log_info "Criando pacote de deploy..."
 rm -f ../lambda-deploy.zip
 
-# Compactação Segura (Python) - Usa APENAS os arquivos existentes
+# Usando Python para compactar (cross-platform, funciona no Windows/MinGW sem 'zip' instalado)
 python -c "
-import zipfile, os
+import zipfile
+import os
+
+def zipdir(path, ziph):
+    # ziph is zipfile handle
+    for root, dirs, files in os.walk(path):
+        for file in files:
+            # Ignora arquivos desnecessários/ocultos comuns
+            if file == '.DS_Store' or file.endswith('.zip'):
+                continue
+            
+            file_path = os.path.join(root, file)
+            # O arcname deve ser relativo à raiz do pacote
+            arcname = os.path.relpath(file_path, path)
+            ziph.write(file_path, arcname)
+
 with zipfile.ZipFile('../lambda-deploy.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
-    # Lista explícita para evitar lixo, mas pega o que estiver na pasta
-    for file in os.listdir('.'):
-        if file.endswith('.js') or file.endswith('.json'):
-            zf.write(file)
+    zipdir('.', zf)
 "
+
 cd ..
 
 # Verifica se a função existe
@@ -158,6 +178,10 @@ else
     log_info "Atualizando código da função existente..."
     aws lambda update-function-code --function-name ${LAMBDA_FUNCTION_NAME} --zip-file fileb://lambda-deploy.zip --region ${REGION} > /dev/null
     
+    log_info "Aguardando confirmação de atualização..."
+    aws lambda wait function-updated --function-name ${LAMBDA_FUNCTION_NAME} --region ${REGION}
+    sleep 2
+
     # Atualiza variáveis de ambiente (caso tenham mudado)
     aws lambda update-function-configuration --function-name ${LAMBDA_FUNCTION_NAME} --environment Variables="{TABLE_NAME=${TABLE_NAME},SNS_TOPIC_ARN=${SNS_TOPIC_ARN},REGION=${REGION}}" --region ${REGION} > /dev/null
 fi

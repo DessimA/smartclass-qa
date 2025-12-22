@@ -3,7 +3,7 @@
  * Validar algoritmo de IA com casos reais
  */
 
-const MessageClassifier = require('../classifier');
+const MessageClassifier = require('../lambda/classifier');
 
 // Cores para output
 const GREEN = '\x1b[32m';

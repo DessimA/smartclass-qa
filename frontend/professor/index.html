@@ -3,74 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Class Q&A - Dashboard Professor</title>
+    <title>Smart Class Q&A - Professor</title>
     <link rel="stylesheet" href="../shared/styles.css">
+    <link rel="icon" type="image/x-icon" href="../assets/favicon.ico">
     <style>
-        body { background: linear-gradient(135deg, #0a1929 0%, #1a2332 100%); min-height: 100vh; padding: 20px; font-family: sans-serif; }
-        .container { max-width: 1200px; margin: 0 auto; }
-        .header { background: linear-gradient(135deg, #0d47a1 0%, #1565c0 100%); padding: 30px; border-radius: 16px; margin-bottom: 30px; box-shadow: 0 8px 32px rgba(13, 71, 161, 0.4); display: flex; justify-content: space-between; align-items: center; color: white; }
-        .header h1 { margin: 0; font-size: 28px; }
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .stat-card { background: #1e2936; padding: 25px; border-radius: 12px; border-left: 4px solid; color: white; }
-        .stat-card.total { border-color: #42a5f5; }
-        .stat-card.pending { border-color: #ff9800; }
-        .stat-card.answered { border-color: #4caf50; }
-        .stat-value { font-size: 36px; font-weight: 700; }
-        .stat-label { color: #90a4ae; font-size: 13px; text-transform: uppercase; }
-        .controls { background: #1e2936; padding: 25px; border-radius: 12px; margin-bottom: 25px; }
-        .search-box { display: flex; gap: 10px; margin-top: 15px; }
-        .search-box input { flex: 1; padding: 12px; background: #263647; border: 2px solid #37474f; border-radius: 8px; color: white; }
-        .search-box button { padding: 12px 24px; background: #37474f; border: none; border-radius: 8px; color: #90caf9; cursor: pointer; }
-        .question-card { background: #1e2936; padding: 25px; border-radius: 12px; margin-bottom: 15px; border-left: 4px solid #ff9800; color: #cfd8dc; }
-        .question-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
-        .student-name { color: #42a5f5; font-weight: 600; }
-        .badge { padding: 5px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; background: rgba(255, 152, 0, 0.2); color: #ffb74d; }
-        .loading-container { text-align: center; padding: 50px; color: #90caf9; }
-        .footer { text-align: center; margin-top: 40px; color: #78909c; font-size: 13px; }
+        body {
+            background-image: url('../assets/bg-professor.jpg');
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div class="header-left">
-                <h1>👨‍🏫 Dashboard do Professor</h1>
-                <p>Smart Class Q&A - Painel de Dúvidas Inteligente</p>
+    
+    <div class="main-container">
+        
+        <header class="app-header glass-panel" style="padding: 1.5rem 2rem; margin-bottom: 2rem; border-radius: 16px;">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <img src="../assets/logo.png" alt="Logo" class="logo-img">
+                <div class="header-content">
+                    <h1 style="font-size: 1.5rem; margin: 0;">Dashboard Professor</h1>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">Centro de Comando</p>
+                </div>
             </div>
-            <div class="header-right">
-                <div class="refresh-indicator" id="refreshIndicator">🔄 <span id="refreshText">Pronto</span></div>
+            
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <div style="background: rgba(0,0,0,0.3); padding: 0.5rem 1rem; border-radius: 50px; font-size: 0.85rem; border: 1px solid var(--glass-border); display: flex; align-items: center; gap: 8px;">
+                    <span id="refreshIndicator" style="display: flex; align-items: center; gap: 6px;">
+                        <span style="width: 8px; height: 8px; background: var(--success); border-radius: 50%; display: inline-block;"></span>
+                        <span id="refreshText">Conectado</span>
+                    </span>
+                </div>
             </div>
-        </div>
+        </header>
 
         <div class="stats-grid">
-            <div class="stat-card total">
-                <div class="stat-label">Total de Dúvidas</div>
-                <div class="stat-value" id="statTotal">0</div>
+            <div class="stat-card">
+                <div class="stat-value" id="statTotal" style="color: var(--text-primary)">0</div>
+                <div class="stat-label">Total Recebido</div>
             </div>
-            <div class="stat-card pending">
-                <div class="stat-label">Não Respondidas</div>
-                <div class="stat-value" id="statPending">0</div>
+            <div class="stat-card" style="border-bottom: 4px solid var(--warning);">
+                <div class="stat-value" id="statPending" style="color: var(--warning)">0</div>
+                <div class="stat-label">Pendentes</div>
             </div>
-            <div class="stat-card answered">
+            <div class="stat-card" style="border-bottom: 4px solid var(--success);">
+                <div class="stat-value" id="statAnswered" style="color: var(--success)">0</div>
                 <div class="stat-label">Respondidas</div>
-                <div class="stat-value" id="statAnswered">0</div>
             </div>
         </div>
 
-        <div class="controls">
-            <div class="search-box">
-                <input type="text" id="searchInput" placeholder="Buscar por aluno ou mensagem...">
-                <button onclick="carregarDuvidas()">Atualizar</button>
+        <div class="glass-panel" style="padding: 1.5rem; margin-bottom: 2rem; border-radius: 16px;">
+            <div style="display: flex; gap: 1rem; align-items: center;">
+                <div style="flex: 1; position: relative;">
+                    <input type="text" class="form-control" id="searchInput" placeholder="Buscar por aluno, email ou conteúdo..." style="padding-left: 2.5rem; background: rgba(0,0,0,0.2);">
+                    <span style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); opacity: 0.5;">🔍</span>
+                </div>
+                <button class="btn btn-secondary" onclick="carregarDuvidas()" style="width: auto; padding: 0.8rem 1.5rem;">
+                    Atualizar
+                </button>
             </div>
         </div>
 
-        <div class="questions-container" id="questionsContainer">
-            <div class="loading-container">Carregando dúvidas...</div>
+        <div id="questionsContainer">
+            <div style="text-align: center; padding: 4rem; opacity: 0.7;">
+                <div class="spinner" style="width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.1); border-top-color: var(--primary-color); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
+                <p>Sincronizando feed de dúvidas...</p>
+            </div>
         </div>
 
-        <div class="footer">
-            <p>Smart Class Q&A | Turma BRSAO207</p>
-        </div>
+        <footer style="text-align: center; margin-top: 4rem; color: var(--text-secondary); font-size: 0.85rem; padding-bottom: 2rem;">
+            <p>&copy; 2025 Smart Class Q&A System</p>
+        </footer>
     </div>
+
+    <style>
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+
     <script src="../shared/config.js"></script>
     <script src="app.js"></script>
 </body>

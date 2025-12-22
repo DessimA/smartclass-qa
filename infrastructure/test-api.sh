@@ -127,6 +127,31 @@ if [[ "$HTTP_CODE_GET" == "200" ]]; then
     # Verifica se nossa mensagem de teste está na lista
     if echo "$BODY_GET" | grep -q "bot-tester@check.com"; then
         log_success "Persistência confirmada: Mensagem de teste encontrada no banco."
+        
+        # Extrair ID e Timestamp para teste de atualização
+        # Python script para filtrar pelo email e pegar o primeiro item
+        PYTHON_EXTRACT_SCRIPT="
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    # Garante que data é uma lista
+    if not isinstance(data, list): data = []
+    
+    target = next((item for item in data if item.get('email') == 'bot-tester@check.com'), None)
+    if target:
+        print(f\"{target['messageId']}|{target['timestamp']}\")
+except:
+    print('')
+"
+        echo "$BODY_GET" > json_temp.json
+        MSG_DATA=$(python -c "$PYTHON_EXTRACT_SCRIPT" < json_temp.json)
+        rm json_temp.json
+        
+        if [ ! -z "$MSG_DATA" ]; then
+            MSG_ID=$(echo $MSG_DATA | cut -d'|' -f1)
+            MSG_TS=$(echo $MSG_DATA | cut -d'|' -f2)
+            log_info "Dados capturados para atualização: ID=$MSG_ID, TS=$MSG_TS"
+        fi
     else
         log_fail "Mensagem enviada não foi encontrada na listagem (Erro de Persistência DynamoDB)."
     fi
@@ -136,7 +161,31 @@ else
 fi
 
 ################################################################################
-# 4. CONCLUSÃO
+# 4. TESTE DE ATUALIZAÇÃO (PUT /status)
+################################################################################
+if [ ! -z "$MSG_ID" ] && [ ! -z "$MSG_TS" ]; then
+    log_info "4. Testando atualização de status (PUT)..."
+    
+    PUT_PAYLOAD="{\"messageId\": \"$MSG_ID\", \"timestamp\": $MSG_TS, \"status\": \"Respondida\"}"
+    
+    RESPONSE_PUT=$(curl -s -w "\n%{http_code}" -X PUT \
+        -H "Content-Type: application/json" \
+        -d "$PUT_PAYLOAD" \
+        "$API_URL/status")
+
+    HTTP_CODE_PUT=$(echo "$RESPONSE_PUT" | tail -n1)
+    
+    if [[ "$HTTP_CODE_PUT" == "200" ]]; then
+        log_success "Status atualizado com sucesso (HTTP 200)."
+    else
+        log_fail "Falha na atualização. Código: $HTTP_CODE_PUT"
+    fi
+else
+    log_warning "Pulando teste de PUT (falta ID/Timestamp)."
+fi
+
+################################################################################
+# 5. CONCLUSÃO
 ################################################################################
 echo ""
 echo "------------------------------------------"
