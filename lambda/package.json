@@ -1,33 +1,5 @@
 {
   "name": "smartclass-qa-lambda",
   "version": "1.0.0",
-  "description": "Smart Class Q&A - Backend Lambda Function with AI Classifier",
-  "main": "index.js",
-  "scripts": {
-    "test": "node tests/test-classifier.js",
-    "test-local": "sam local invoke -e tests/test-event.json",
-    "package": "zip -r lambda-function.zip . -x '*.git*' 'node_modules/.bin/*' 'tests/*'"
-  },
-  "keywords": [
-    "aws",
-    "lambda",
-    "dynamodb",
-    "sns",
-    "ai",
-    "classifier",
-    "education"
-  ],
-  "author": "Smart Class Q&A Team - BRSAO207",
-  "license": "MIT",
-  "dependencies": {
-    "uuid": "^9.0.0"
-  },
-  "devDependencies": {},
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/DessimA/smartclass-qa"
-  }
+  "main": "index.js"
 }

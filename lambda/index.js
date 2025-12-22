@@ -1,227 +1,115 @@
-/**
- * Smart Class Q&A - Lambda Handler Principal
- * Processa requisições da API Gateway e gerencia mensagens
- */
-
-const AWS = require('aws-sdk');
-const { v4: uuidv4 } = require('uuid');
 const MessageClassifier = require('./classifier');
 const DynamoDBService = require('./dynamodb');
 const SNSService = require('./sns');
+const { sanitizeText } = require('./utils');
 
-// Configurar AWS SDK
-const dynamodb = new AWS.DynamoDB.DocumentClient({ region: process.env.REGION || 'us-west-2' });
-const sns = new AWS.SNS({ region: process.env.REGION || 'us-west-2' });
+const TABLE_NAME = process.env.TABLE_NAME;
+const SNS_TOPIC_ARN = process.env.SNS_TOPIC_ARN;
 
-// Inicializar serviços
+const dbService = new DynamoDBService(TABLE_NAME);
+const snsService = new SNSService(SNS_TOPIC_ARN);
 const classifier = new MessageClassifier();
-const dbService = new DynamoDBService(dynamodb, process.env.TABLE_NAME);
-const snsService = new SNSService(sns, process.env.SNS_TOPIC_ARN);
 
-/**
- * Handler principal - roteador de requisições
- */
+const headers = { "Content-Type": "application/json" };
+
 exports.handler = async (event) => {
-  console.log('Event received:', JSON.stringify(event, null, 2));
+    console.log("EVENTO COMPLETO:", JSON.stringify(event));
+    let body = {};
+    let statusCode = 200;
 
-  try {
-    const httpMethod = event.httpMethod;
-    const path = event.path;
-    const body = event.body ? JSON.parse(event.body) : null;
+    try {
+        // 1. Normalização de Rota e Método
+        let path = event.rawPath || event.path || "/";
+        
+        // Normaliza método para UPPERCASE
+        let method = event.httpMethod || "";
+        if (event.requestContext && event.requestContext.http) {
+            method = event.requestContext.http.method;
+        }
+        method = method.toUpperCase();
 
-    // Roteamento de requisições
-    if (httpMethod === 'POST' && path.includes('/mensagem')) {
-      return await handlePostMessage(body);
+        // Remove barra final
+        if (path.endsWith('/') && path.length > 1) path = path.slice(0, -1);
+
+        console.log(`ROTA IDENTIFICADA: [${method}] ${path}`);
+
+        // 2. Parse do Body
+        let requestBody = {};
+        if (event.body) {
+            let rawBody = event.body;
+            if (event.isBase64Encoded) {
+                rawBody = Buffer.from(event.body, 'base64').toString('utf-8');
+            }
+            try { requestBody = JSON.parse(rawBody); } catch (e) { console.error("JSON Parse Error", e); }
+        }
+
+        // 3. Roteamento
+        
+        // Tratamento explícito de OPTIONS (CORS)
+        if (method === 'OPTIONS') {
+            statusCode = 200;
+            body = { message: "CORS OK" };
+        }
+        
+        // POST /mensagem
+        else if (path === '/mensagem' && method === 'POST') {
+            const { message, email, type } = requestBody;
+            const classificationResult = classifier.classify(message || "");
+            
+            const messageId = Date.now().toString();
+            const timestamp = Date.now();
+            
+            const item = {
+                messageId, timestamp,
+                message: sanitizeText(message),
+                email: email || "anonimo",
+                type: type || 'text',
+                status: 'PENDING',
+                classification: classificationResult.classification,
+                confidence: classificationResult.confidence,
+                aiReason: classificationResult.reason
+            };
+
+            await dbService.saveMessage(item);
+            await snsService.notifyNewQuestion({
+                alunoNome: email, mensagem: message,
+                confidence: classificationResult.confidence,
+                classification: classificationResult.classification
+            });
+
+            body = { message: "Recebido", id: messageId, classification: classificationResult.classification };
+        }
+        
+        // GET /duvidas
+        else if (path === '/duvidas' && method === 'GET') {
+            const items = await dbService.getAllQuestions();
+            body = items.sort((a, b) => b.timestamp - a.timestamp);
+        }
+        
+        // PUT /status
+        else if (path === '/status' && method === 'PUT') {
+            const { messageId, timestamp, status } = requestBody;
+            await dbService.updateMessageStatus(messageId, timestamp, status);
+            body = { message: "Atualizado" };
+        }
+        
+        // Rota não encontrada
+        else {
+            console.warn(`Rota não encontrada: [${method}] ${path}`);
+            statusCode = 404;
+            // Retorna detalhes para debug no frontend
+            body = { 
+                error: `Rota desconhecida: ${path}`,
+                debug_method: method,
+                debug_path: path
+            };
+        }
+
+    } catch (error) {
+        console.error("ERRO FATAL:", error);
+        statusCode = 500;
+        body = { error: error.message };
     }
-    
-    if (httpMethod === 'GET' && path.includes('/duvidas')) {
-      return await handleGetDuvidas(event.queryStringParameters);
-    }
-    
-    if (httpMethod === 'PUT' && path.includes('/status')) {
-      return await handleUpdateStatus(body);
-    }
-    
-    // Rota não encontrada
-    return createResponse(404, { error: 'Rota não encontrada' });
-    
-  } catch (error) {
-    console.error('Error:', error);
-    return createResponse(500, { 
-      error: 'Erro interno do servidor',
-      message: error.message 
-    });
-  }
+
+    return { statusCode, headers, body: JSON.stringify(body) };
 };
-
-/**
- * POST /mensagem - Processar nova mensagem
- */
-async function handlePostMessage(body) {
-  try {
-    // Validar entrada
-    if (!body || !body.mensagem || !body.alunoNome) {
-      return createResponse(400, { 
-        error: 'Campos obrigatórios: mensagem, alunoNome' 
-      });
-    }
-
-    const { mensagem, alunoNome } = body;
-
-    // Classificar mensagem usando IA
-    console.log('Classificando mensagem:', mensagem);
-    const classificationResult = classifier.classify(mensagem);
-    
-    console.log('Resultado da classificação:', classificationResult);
-
-    // Criar objeto da mensagem
-    const messageData = {
-      messageId: uuidv4(),
-      timestamp: Date.now(),
-      alunoNome,
-      mensagem,
-      classification: classificationResult.classification,
-      score: classificationResult.score,
-      confidence: classificationResult.confidence,
-      reason: classificationResult.reason,
-      sentiment: classificationResult.analysis.sentiment,
-      status: classificationResult.classification === 'DUVIDA' ? 'Não Respondida' : 'N/A',
-      respondidaEm: null,
-      createdAt: new Date().toISOString()
-    };
-
-    // Salvar no DynamoDB
-    await dbService.saveMessage(messageData);
-    console.log('Mensagem salva no DynamoDB:', messageData.messageId);
-
-    // Se for DÚVIDA, enviar notificação ao professor
-    if (classificationResult.classification === 'DUVIDA') {
-      try {
-        await snsService.notifyNewQuestion({
-          alunoNome,
-          mensagem,
-          confidence: classificationResult.confidence,
-          timestamp: new Date().toISOString()
-        });
-        console.log('Notificação SNS enviada');
-      } catch (snsError) {
-        console.error('Erro ao enviar notificação SNS:', snsError);
-        // Não falhar a requisição se SNS falhar
-      }
-    }
-
-    // Retornar resposta
-    return createResponse(200, {
-      success: true,
-      messageId: messageData.messageId,
-      classification: classificationResult.classification,
-      confidence: classificationResult.confidence,
-      message: classificationResult.classification === 'DUVIDA' 
-        ? 'Dúvida registrada! O professor será notificado.'
-        : 'Mensagem registrada como interação.'
-    });
-
-  } catch (error) {
-    console.error('Erro ao processar mensagem:', error);
-    return createResponse(500, { 
-      error: 'Erro ao processar mensagem',
-      details: error.message 
-    });
-  }
-}
-
-/**
- * GET /duvidas - Listar dúvidas
- */
-async function handleGetDuvidas(queryParams) {
-  try {
-    const status = queryParams?.status || 'all';
-    
-    console.log('Listando dúvidas. Status:', status);
-
-    let messages;
-    
-    if (status === 'all') {
-      messages = await dbService.getAllQuestions();
-    } else {
-      messages = await dbService.getQuestionsByStatus(status);
-    }
-
-    console.log(`Encontradas ${messages.length} dúvidas`);
-
-    return createResponse(200, {
-      success: true,
-      count: messages.length,
-      duvidas: messages.sort((a, b) => b.timestamp - a.timestamp) // Mais recentes primeiro
-    });
-
-  } catch (error) {
-    console.error('Erro ao listar dúvidas:', error);
-    return createResponse(500, { 
-      error: 'Erro ao listar dúvidas',
-      details: error.message 
-    });
-  }
-}
-
-/**
- * PUT /status - Atualizar status da dúvida
- */
-async function handleUpdateStatus(body) {
-  try {
-    // Validar entrada
-    if (!body || !body.messageId || !body.status) {
-      return createResponse(400, { 
-        error: 'Campos obrigatórios: messageId, status' 
-      });
-    }
-
-    const { messageId, status } = body;
-
-    // Validar status
-    const validStatuses = ['Não Respondida', 'Respondida'];
-    if (!validStatuses.includes(status)) {
-      return createResponse(400, { 
-        error: `Status inválido. Valores aceitos: ${validStatuses.join(', ')}` 
-      });
-    }
-
-    console.log(`Atualizando status. MessageId: ${messageId}, Novo status: ${status}`);
-
-    // Atualizar no DynamoDB
-    const updatedMessage = await dbService.updateMessageStatus(
-      messageId, 
-      status,
-      status === 'Respondida' ? new Date().toISOString() : null
-    );
-
-    return createResponse(200, {
-      success: true,
-      message: 'Status atualizado com sucesso',
-      data: updatedMessage
-    });
-
-  } catch (error) {
-    console.error('Erro ao atualizar status:', error);
-    return createResponse(500, { 
-      error: 'Erro ao atualizar status',
-      details: error.message 
-    });
-  }
-}
-
-/**
- * Criar resposta HTTP padronizada com CORS
- */
-function createResponse(statusCode, body) {
-  return {
-    statusCode,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-    },
-    body: JSON.stringify(body)
-  };
-}

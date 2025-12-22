@@ -1,318 +1,95 @@
-/**
- * Smart Class Q&A - Interface do Aluno
- * Gerencia envio de mensagens e histórico local
- */
-
-// Estado da aplicação
-const state = {
-    isSubmitting: false,
-    history: []
-};
-
-// Elementos DOM
-const elements = {
-    form: document.getElementById('messageForm'),
-    alunoNome: document.getElementById('alunoNome'),
-    mensagem: document.getElementById('mensagem'),
-    submitBtn: document.getElementById('submitBtn'),
-    charCount: document.getElementById('charCount'),
-    alertContainer: document.getElementById('alertContainer'),
-    historySection: document.getElementById('historySection'),
-    historyList: document.getElementById('historyList')
-};
-
-/**
- * Inicialização
- */
 document.addEventListener('DOMContentLoaded', () => {
-    initializeApp();
+    const form = document.getElementById('messageForm');
+    const msgInput = document.getElementById('mensagem');
+    const charCount = document.getElementById('charCount');
+
+    // Contador de caracteres
+    if (msgInput && charCount) {
+        msgInput.addEventListener('input', () => {
+            charCount.innerText = msgInput.value.length;
+        });
+    }
+
+    if (form) {
+        form.addEventListener('submit', handleSubmit);
+    }
 });
 
-function initializeApp() {
-    // Carregar nome salvo
-    loadSavedName();
-    
-    // Carregar histórico
-    loadHistory();
-    
-    // Event listeners
-    elements.form.addEventListener('submit', handleSubmit);
-    elements.form.addEventListener('reset', handleReset);
-    elements.mensagem.addEventListener('input', updateCharCount);
-    elements.alunoNome.addEventListener('input', saveName);
-    
-    // Atualizar contador inicial
-    updateCharCount();
-    
-    console.log('Interface do aluno inicializada');
-}
-
-/**
- * Salvar nome do aluno no localStorage
- */
-function saveName() {
-    const nome = elements.alunoNome.value.trim();
-    if (nome) {
-        localStorage.setItem('smartclass_aluno_nome', nome);
-    }
-}
-
-/**
- * Carregar nome salvo
- */
-function loadSavedName() {
-    const savedName = localStorage.getItem('smartclass_aluno_nome');
-    if (savedName) {
-        elements.alunoNome.value = savedName;
-    }
-}
-
-/**
- * Atualizar contador de caracteres
- */
-function updateCharCount() {
-    const count = elements.mensagem.value.length;
-    elements.charCount.textContent = count;
-    
-    // Mudar cor se próximo do limite
-    if (count > 900) {
-        elements.charCount.style.color = '#ef5350';
-    } else if (count > 800) {
-        elements.charCount.style.color = '#ffb74d';
-    } else {
-        elements.charCount.style.color = '#78909c';
-    }
-}
-
-/**
- * Tratar envio do formulário
- */
 async function handleSubmit(e) {
     e.preventDefault();
     
-    if (state.isSubmitting) return;
+    const submitBtn = document.getElementById('submitBtn');
+    const originalText = submitBtn.innerText;
+    const alertContainer = document.getElementById('alertContainer');
     
-    // Validar campos
-    const alunoNome = elements.alunoNome.value.trim();
-    const mensagem = elements.mensagem.value.trim();
+    // Captura IDs corretos do HTML
+    const nome = document.getElementById('alunoNome').value;
+    const mensagem = document.getElementById('mensagem').value;
     
-    if (!alunoNome || !mensagem) {
-        showAlert('Por favor, preencha todos os campos', 'error');
+    if (!nome || !mensagem) {
+        showAlert('Por favor, preencha todos os campos.', 'error');
         return;
     }
-    
-    if (mensagem.length < 3) {
-        showAlert('A mensagem deve ter pelo menos 3 caracteres', 'error');
-        return;
-    }
-    
-    // Preparar dados
-    const data = {
-        alunoNome,
-        mensagem
-    };
-    
-    // Enviar mensagem
-    await sendMessage(data);
-}
 
-/**
- * Enviar mensagem para a API
- */
-async function sendMessage(data) {
-    state.isSubmitting = true;
-    updateSubmitButton(true);
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'ENVIANDO...';
+    alertContainer.className = 'alert'; // Esconde alerta anterior
     
     try {
-        // Verificar se API_CONFIG está definido
-        if (typeof API_CONFIG === 'undefined') {
-            throw new Error('Configuração da API não encontrada');
-        }
+        const endpoint = window.API_CONFIG.endpoints.mensagem;
+        const url = `${window.API_CONFIG.baseURL}${endpoint}`;
         
-        const url = `${API_CONFIG.baseURL}${API_CONFIG.endpoints.mensagem}`;
-        
-        console.log('Enviando mensagem para:', url);
-        
+        const payload = {
+            email: nome,
+            message: mensagem,
+            type: 'text'
+        };
+
         const response = await fetch(url, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
         });
-        
-        const result = await response.json();
-        
-        if (response.ok && result.success) {
-            // Sucesso
-            showAlert(result.message || 'Mensagem enviada com sucesso!', 'success');
-            
-            // Adicionar ao histórico
-            addToHistory({
-                ...data,
-                classification: result.classification,
-                confidence: result.confidence,
-                timestamp: new Date().toISOString()
-            });
-            
-            // Limpar formulário
-            elements.mensagem.value = '';
-            updateCharCount();
-            
-            // Scroll suave para o histórico
-            setTimeout(() => {
-                elements.historySection.scrollIntoView({ behavior: 'smooth' });
-            }, 300);
-            
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showAlert(`✅ Mensagem enviada! (ID: ${data.id})`, 'success');
+            document.getElementById('mensagem').value = '';
+            document.getElementById('charCount').innerText = '0';
+            addToHistory(nome, mensagem, data.classification);
         } else {
-            // Erro da API
-            showAlert(result.error || 'Erro ao enviar mensagem', 'error');
+            throw new Error(data.error || 'Erro desconhecido');
         }
-        
+
     } catch (error) {
-        console.error('Erro ao enviar mensagem:', error);
-        showAlert('Erro de conexão. Verifique se a API está configurada.', 'error');
+        console.error(error);
+        showAlert(`❌ Erro: ${error.message}`, 'error');
     } finally {
-        state.isSubmitting = false;
-        updateSubmitButton(false);
+        submitBtn.disabled = false;
+        submitBtn.innerText = originalText;
     }
 }
 
-/**
- * Atualizar botão de submit
- */
-function updateSubmitButton(loading) {
-    if (loading) {
-        elements.submitBtn.disabled = true;
-        elements.submitBtn.innerHTML = '<span class="loader"></span>Enviando...';
-    } else {
-        elements.submitBtn.disabled = false;
-        elements.submitBtn.innerHTML = 'Enviar Mensagem';
-    }
+function showAlert(msg, type) {
+    const el = document.getElementById('alertContainer');
+    el.innerText = msg;
+    el.className = `alert show alert-${type}`;
 }
 
-/**
- * Mostrar alerta
- */
-function showAlert(message, type = 'info') {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} show`;
-    alertDiv.textContent = message;
+function addToHistory(nome, msg, classification) {
+    const section = document.getElementById('historySection');
+    const list = document.getElementById('historyList');
     
-    elements.alertContainer.innerHTML = '';
-    elements.alertContainer.appendChild(alertDiv);
+    section.style.display = 'block';
     
-    // Auto-remover após 5 segundos
-    setTimeout(() => {
-        alertDiv.classList.remove('show');
-        setTimeout(() => alertDiv.remove(), 300);
-    }, 5000);
-}
-
-/**
- * Adicionar ao histórico
- */
-function addToHistory(item) {
-    state.history.unshift(item);
+    const item = document.createElement('div');
+    item.className = 'history-item';
+    item.innerHTML = `
+        <div class="meta">Agora • ${nome}</div>
+        <div class="message">${msg}</div>
+        <div class="classification ${classification.toLowerCase()}">${classification}</div>
+    `;
     
-    // Limitar a 10 itens
-    if (state.history.length > 10) {
-        state.history = state.history.slice(0, 10);
-    }
-    
-    // Salvar no localStorage
-    localStorage.setItem('smartclass_history', JSON.stringify(state.history));
-    
-    // Atualizar UI
-    renderHistory();
-}
-
-/**
- * Carregar histórico do localStorage
- */
-function loadHistory() {
-    const saved = localStorage.getItem('smartclass_history');
-    if (saved) {
-        try {
-            state.history = JSON.parse(saved);
-            renderHistory();
-        } catch (error) {
-            console.error('Erro ao carregar histórico:', error);
-        }
-    }
-}
-
-/**
- * Renderizar histórico
- */
-function renderHistory() {
-    if (state.history.length === 0) {
-        elements.historySection.style.display = 'none';
-        return;
-    }
-    
-    elements.historySection.style.display = 'block';
-    
-    const html = state.history.map(item => {
-        const date = new Date(item.timestamp);
-        const formattedDate = date.toLocaleString('pt-BR', {
-            day: '2-digit',
-            month: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-        
-        return `
-            <div class="history-item">
-                <div class="meta">
-                    📅 ${formattedDate} • ${item.alunoNome}
-                </div>
-                <div class="message">${escapeHtml(item.mensagem)}</div>
-                <span class="classification ${item.classification?.toLowerCase() || 'interacao'}">
-                    ${item.classification === 'DUVIDA' ? '❓ DÚVIDA' : '💬 INTERAÇÃO'}
-                    ${item.confidence ? ` (${item.confidence}% confiança)` : ''}
-                </span>
-            </div>
-        `;
-    }).join('');
-    
-    elements.historyList.innerHTML = html;
-}
-
-/**
- * Escapar HTML para prevenir XSS
- */
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-/**
- * Tratar reset do formulário
- */
-function handleReset() {
-    setTimeout(() => {
-        updateCharCount();
-        elements.alertContainer.innerHTML = '';
-    }, 0);
-}
-
-/**
- * Limpar histórico (função auxiliar para debug)
- */
-window.clearHistory = function() {
-    if (confirm('Deseja realmente limpar o histórico?')) {
-        state.history = [];
-        localStorage.removeItem('smartclass_history');
-        renderHistory();
-        showAlert('Histórico limpo com sucesso!', 'success');
-    }
-};
-
-// Expor estado para debug
-if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    window.appState = state;
-    console.log('Debug mode: window.appState disponível');
-    console.log('Comandos: clearHistory()');
+    list.prepend(item);
 }

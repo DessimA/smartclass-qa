@@ -1,92 +1,37 @@
 /**
- * Smart Class Q&A - Configuração da API
- * 
- * IMPORTANTE: Este arquivo será atualizado automaticamente pelo script de deploy
- * com a URL correta da API Gateway
+ * Configuração da API - Gerada Automaticamente
  */
-
 const API_CONFIG = {
-    // URL base da API Gateway (será preenchida pelo deploy.sh)
-    baseURL: 'https://YOUR_API_ID.execute-api.us-west-2.amazonaws.com/prod',
-    
-    // Endpoints disponíveis
-    endpoints: {
-        mensagem: '/mensagem',      // POST - Enviar mensagem
-        duvidas: '/duvidas',         // GET - Listar dúvidas
-        status: '/status'            // PUT - Atualizar status
-    },
-    
-    // Configurações de timeout
-    timeout: 30000, // 30 segundos
-    
-    // Headers padrão
-    defaultHeaders: {
-        'Content-Type': 'application/json'
-    }
+  baseURL: 'https://lweramtlmzjrw5ri7zlhytuqgi0fvoas.lambda-url.us-west-2.on.aws',
+  endpoints: {
+    mensagem: '/mensagem',
+    duvidas: '/duvidas',
+    status: '/status'
+  }
+};
+
+// Exporta para o escopo global (necessário para app.js)
+window.API_CONFIG = API_CONFIG;
+
+/**
+ * Verifica se a API está configurada corretamente
+ * Esta é a função que estava faltando e causando o erro no Dashboard
+ */
+window.isAPIConfigured = function() {
+  return API_CONFIG && 
+         API_CONFIG.baseURL && 
+         !API_CONFIG.baseURL.includes('SEU_API_GATEWAY_URL');
 };
 
 /**
- * Verificar se API está configurada
+ * Helper para montar URLs
  */
-function isAPIConfigured() {
-    return !API_CONFIG.baseURL.includes('YOUR_API_ID');
-}
+window.getApiUrl = function(endpoint) {
+  if (!API_CONFIG.endpoints[endpoint]) {
+    console.error(`Endpoint não encontrado: ${endpoint}`);
+    return '';
+  }
+  return `${API_CONFIG.baseURL}${API_CONFIG.endpoints[endpoint]}`;
+};
 
-/**
- * Helper para fazer requisições à API
- */
-async function apiRequest(endpoint, options = {}) {
-    if (!isAPIConfigured()) {
-        throw new Error('API não configurada. Execute o deploy primeiro.');
-    }
-    
-    const url = `${API_CONFIG.baseURL}${endpoint}`;
-    
-    const defaultOptions = {
-        headers: API_CONFIG.defaultHeaders,
-        timeout: API_CONFIG.timeout
-    };
-    
-    const finalOptions = {
-        ...defaultOptions,
-        ...options,
-        headers: {
-            ...defaultOptions.headers,
-            ...(options.headers || {})
-        }
-    };
-    
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.timeout);
-        
-        const response = await fetch(url, {
-            ...finalOptions,
-            signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        
-        return response;
-        
-    } catch (error) {
-        if (error.name === 'AbortError') {
-            throw new Error('Timeout: A requisição demorou muito para responder');
-        }
-        throw error;
-    }
-}
-
-// Expor configuração globalmente
-if (typeof window !== 'undefined') {
-    window.API_CONFIG = API_CONFIG;
-    window.apiRequest = apiRequest;
-    window.isAPIConfigured = isAPIConfigured;
-    
-    // Log de debug
-    if (!isAPIConfigured()) {
-        console.warn('⚠️  API não configurada. Execute o deploy.sh para configurar.');
-    } else {
-        console.log('✅ API configurada:', API_CONFIG.baseURL);
-    }
-}
+console.log('Configuração da API carregada:', API_CONFIG.baseURL);
