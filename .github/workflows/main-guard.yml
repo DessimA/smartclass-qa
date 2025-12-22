@@ -1,0 +1,17 @@
+name: Main Branch Guard
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  check-author:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verificar autor do push
+        if: github.actor != github.repository_owner
+        run: |
+          echo "ERRO: Push direto na branch MAIN não é permitido para colaboradores."
+          echo "Por favor, envie suas alterações para a branch 'dev' e abra um Pull Request."
+          exit 1
