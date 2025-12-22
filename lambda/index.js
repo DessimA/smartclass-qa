@@ -1,4 +1,5 @@
 const MessageClassifier = require('./classifier');
+const AIValidator = require('./ai-validator');
 const DynamoDBService = require('./dynamodb');
 const SNSService = require('./sns');
 const { sanitizeText } = require('./utils');
@@ -9,6 +10,7 @@ const SNS_TOPIC_ARN = process.env.SNS_TOPIC_ARN;
 const dbService = new DynamoDBService(TABLE_NAME);
 const snsService = new SNSService(SNS_TOPIC_ARN);
 const classifier = new MessageClassifier();
+const aiValidator = new AIValidator();
 
 const headers = { "Content-Type": "application/json" };
 
@@ -54,8 +56,26 @@ exports.handler = async (event) => {
         // POST /mensagem
         else if (path === '/mensagem' && method === 'POST') {
             const { message, email, type } = requestBody;
+            
+            // Classificação inicial por regras (rápida)
             const classificationResult = classifier.classify(message || "");
             
+            // Validação extra com IA (Comprehend)
+            let aiValidation;
+            try {
+                console.log("Iniciando validação extra com IA...");
+                aiValidation = await aiValidator.validate(message || "", classificationResult.classification);
+                console.log("Resultado IA:", JSON.stringify(aiValidation));
+            } catch (aiError) {
+                console.error("ERRO NA CHAMADA DA IA:", aiError);
+                // Fallback: Se a IA falhar totalmente, usamos o resultado do classificador local
+                aiValidation = {
+                    classification: classificationResult.classification,
+                    confidence: classificationResult.confidence / 100,
+                    reason: "Erro técnico na IA (Fallback Local)"
+                };
+            }
+
             const messageId = Date.now().toString();
             const timestamp = Date.now();
             
@@ -65,25 +85,56 @@ exports.handler = async (event) => {
                 email: email || "anonimo",
                 type: type || 'text',
                 status: 'PENDING',
-                classification: classificationResult.classification,
-                confidence: classificationResult.confidence,
-                aiReason: classificationResult.reason
+                classification: aiValidation.classification, // Usamos a classificação da IA
+                confidence: aiValidation.confidence * 100,     // Normalizamos para 0-100
+                aiReason: aiValidation.reason,
+                ruleClassification: classificationResult.classification // Guardamos a original para auditoria
             };
 
-            await dbService.saveMessage(item);
-            await snsService.notifyNewQuestion({
-                alunoNome: email, mensagem: message,
-                confidence: classificationResult.confidence,
-                classification: classificationResult.classification
-            });
-
-            body = { message: "Recebido", id: messageId, classification: classificationResult.classification };
+            // ALTERAÇÃO: Só salvamos e notificamos se for DÚVIDA e tiver contexto
+            if (item.classification === 'DUVIDA') {
+                console.log("Classificado como DUVIDA. Salvando no banco...");
+                await dbService.saveMessage(item);
+                await snsService.notifyNewQuestion({
+                    alunoNome: email, mensagem: message,
+                    confidence: item.confidence,
+                    classification: item.classification
+                });
+                body = { 
+                    status: "SUCCESS",
+                    message: "Dúvida enviada ao professor!", 
+                    id: messageId, 
+                    classification: item.classification 
+                };
+            } else {
+                console.log("Classificado como INTERACAO ou VAGA. Descartando mensagem.");
+                
+                // Se o classificador local marcar como 'isVague', damos uma resposta especial
+                if (classificationResult.isVague || (message && message.length < 15)) {
+                    body = { 
+                        status: "REJECTED",
+                        message: "Sua dúvida parece muito genérica. Por favor, adicione mais detalhes técnicos (ex: mencione qual serviço AWS ou o erro que está ocorrendo) para que o professor possa te ajudar melhor.", 
+                        classification: "VAGA" 
+                    };
+                } else {
+                    body = { 
+                        status: "IGNORED",
+                        message: "Mensagem recebida (interação social).", 
+                        classification: item.classification 
+                    };
+                }
+            }
         }
         
         // GET /duvidas
         else if (path === '/duvidas' && method === 'GET') {
-            const items = await dbService.getAllQuestions();
-            body = items.sort((a, b) => b.timestamp - a.timestamp);
+            try {
+                const items = await dbService.getAllQuestions();
+                body = Array.isArray(items) ? items.sort((a, b) => b.timestamp - a.timestamp) : [];
+            } catch (dbError) {
+                console.error("Erro ao buscar dúvidas:", dbError);
+                body = []; // Retorna lista vazia em caso de erro no banco
+            }
         }
         
         // PUT /status

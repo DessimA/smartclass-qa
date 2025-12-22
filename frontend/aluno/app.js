@@ -50,10 +50,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
 
             if (response.ok) {
-                showAlert(`Mensagem enviada! Classificação: ${data.classification || 'N/A'}`, 'success');
-                form.reset();
-                charCount.innerText = '0';
-                addToHistory(alunoNome, mensagem, data.classification);
+                if (data.status === "SUCCESS") {
+                    showAlert(`Sucesso: ${data.message}`, 'success');
+                    form.reset();
+                    charCount.innerText = '0';
+                    addToHistory(alunoNome, mensagem, data.classification);
+                } else if (data.status === "REJECTED") {
+                    showAlert(data.message, 'error'); // Mostra em vermelho a orientação técnica
+                } else {
+                    showAlert(data.message, 'info'); // Interação social apenas confirmada
+                    form.reset();
+                    charCount.innerText = '0';
+                }
             } else {
                 throw new Error(data.error || 'Erro ao enviar mensagem');
             }
@@ -77,6 +85,10 @@ function showAlert(message, type) {
         alertBox.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
         alertBox.style.color = '#34d399';
         alertBox.style.border = '1px solid #10b981';
+    } else if (type === 'info') {
+        alertBox.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
+        alertBox.style.color = '#60a5fa';
+        alertBox.style.border = '1px solid #3b82f6';
     } else {
         alertBox.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
         alertBox.style.color = '#f87171';

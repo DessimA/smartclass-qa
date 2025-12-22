@@ -166,7 +166,7 @@ if aws lambda get-function --function-name ${LAMBDA_FUNCTION_NAME} --region ${RE
     log_info "Criando nova função Lambda..."
     aws lambda create-function \
         --function-name ${LAMBDA_FUNCTION_NAME} \
-        --runtime nodejs18.x \
+        --runtime nodejs20.x \
         --role ${LAMBDA_ROLE_ARN} \
         --handler index.handler \
         --zip-file fileb://lambda-deploy.zip \
@@ -207,10 +207,12 @@ EOF
 if ! aws lambda get-function-url-config --function-name ${LAMBDA_FUNCTION_NAME} --region ${REGION} >/dev/null 2>&1; then
     log_info "Criando URL pública..."
     aws lambda create-function-url-config --function-name ${LAMBDA_FUNCTION_NAME} --auth-type NONE --cors file://cors-config.json --region ${REGION} > /dev/null
-    aws lambda add-permission --function-name ${LAMBDA_FUNCTION_NAME} --action lambda:InvokeFunctionUrl --principal "*" --function-url-auth-type NONE --statement-id function-url-public-$(date +%s) --region ${REGION} 2>/dev/null || true
+    aws lambda add-permission --function-name ${LAMBDA_FUNCTION_NAME} --action lambda:InvokeFunctionUrl --principal "*" --function-url-auth-type NONE --statement-id public-url-$(date +%s) --region ${REGION}
 else
     log_info "Atualizando configuração CORS..."
     aws lambda update-function-url-config --function-name ${LAMBDA_FUNCTION_NAME} --auth-type NONE --cors file://cors-config.json --region ${REGION} > /dev/null
+    # Garante a permissão pública em cada deploy caso tenha sido removida
+    aws lambda add-permission --function-name ${LAMBDA_FUNCTION_NAME} --action lambda:InvokeFunctionUrl --principal "*" --function-url-auth-type NONE --statement-id public-url-$(date +%s) --region ${REGION} 2>/dev/null || true
 fi
 rm cors-config.json
 

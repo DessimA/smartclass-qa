@@ -2,7 +2,7 @@
  * Configuração da API - Gerada Automaticamente pelo Deploy
  */
 const API_CONFIG = {
-  baseURL: 'https://lweramtlmzjrw5ri7zlhytuqgi0fvoas.lambda-url.us-west-2.on.aws',
+  baseURL: 'https://cd3mewuesmlpbhzljbqqts7iji0tjnkq.lambda-url.us-west-2.on.aws',
   endpoints: {
     mensagem: '/mensagem',
     duvidas: '/duvidas',
