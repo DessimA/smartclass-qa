@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('messageForm');
     const charCount = document.getElementById('charCount');
     const msgInput = document.getElementById('mensagem');
+    const warningModal = new bootstrap.Modal(document.getElementById('warningModal'));
 
     if (!window.isAPIConfigured()) {
         showAlert('Erro de configuração: API URL não definida.', 'error');
@@ -12,117 +13,100 @@ document.addEventListener('DOMContentLoaded', () => {
     msgInput.addEventListener('input', function() {
         const currentLength = this.value.length;
         charCount.innerText = currentLength;
-        if (currentLength >= 1000) {
-            charCount.style.color = 'red';
-        } else {
-            charCount.style.color = '#78909c';
-        }
+        charCount.style.color = currentLength >= 950 ? '#ef4444' : '#78909c';
     });
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         
         const btn = document.getElementById('submitBtn');
-        const originalBtnText = btn.innerText;
+        const originalBtnContent = btn.innerHTML;
         btn.disabled = true;
-        btn.innerText = 'Enviando...';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enviando...';
 
         const alunoNome = document.getElementById('alunoNome').value;
         const mensagem = document.getElementById('mensagem').value;
 
-        const payload = {
-            email: alunoNome,
-            message: mensagem,
-            type: 'text'
-        };
-
         try {
             const url = window.getApiUrl('mensagem');
-            
             const response = await fetch(url, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: alunoNome, message: mensagem, type: 'text' })
             });
 
             const data = await response.json();
 
             if (response.ok) {
                 if (data.status === "SUCCESS") {
-                    showAlert(`Sucesso: ${data.message}`, 'success');
+                    showAlert(data.message, 'success');
                     form.reset();
                     charCount.innerText = '0';
                     addToHistory(alunoNome, mensagem, data.classification);
                 } else if (data.status === "REJECTED") {
-                    showAlert(data.message, 'error'); // Mostra em vermelho a orientação técnica
+                    showWarningModal(data.message);
                 } else {
-                    showAlert(data.message, 'info'); // Interação social apenas confirmada
+                    showAlert(data.message, 'info'); 
                     form.reset();
                     charCount.innerText = '0';
                 }
             } else {
                 throw new Error(data.error || 'Erro ao enviar mensagem');
             }
-
         } catch (error) {
-            showAlert(`Erro: ${error.message}`, 'error');
+            showAlert(error.message, 'error');
         } finally {
             btn.disabled = false;
-            btn.innerText = originalBtnText;
+            btn.innerHTML = originalBtnContent;
         }
     });
+
+    function showWarningModal(message) {
+        document.getElementById('modalMessage').innerText = message;
+        warningModal.show();
+    }
 });
 
 function showAlert(message, type) {
     const alertBox = document.getElementById('alertContainer');
-    alertBox.innerText = message;
-    alertBox.className = `alert alert-${type} show`;
-    alertBox.style.display = 'block';
-    
+    let alertClass = 'alert border-0 shadow-sm ';
+    let iconClass = 'bi me-2 ';
+
     if (type === 'success') {
-        alertBox.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
-        alertBox.style.color = '#34d399';
-        alertBox.style.border = '1px solid #10b981';
+        alertClass += 'alert-success bg-success bg-opacity-25 text-white';
+        iconClass += 'bi-check-circle-fill';
     } else if (type === 'info') {
-        alertBox.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
-        alertBox.style.color = '#60a5fa';
-        alertBox.style.border = '1px solid #3b82f6';
+        alertClass += 'alert-primary bg-primary bg-opacity-25 text-white';
+        iconClass += 'bi-info-circle-fill';
     } else {
-        alertBox.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
-        alertBox.style.color = '#f87171';
-        alertBox.style.border = '1px solid #ef4444';
+        alertClass += 'alert-danger bg-danger bg-opacity-25 text-white';
+        iconClass += 'bi-exclamation-octagon-fill';
     }
+
+    alertBox.innerHTML = `<div class="${alertClass} d-flex align-items-center"><i class="${iconClass}"></i><div>${message}</div></div>`;
+    alertBox.style.display = 'block';
 
     setTimeout(() => {
         alertBox.style.display = 'none';
-        alertBox.className = 'alert';
-    }, 5000);
+    }, 6000);
 }
 
 function addToHistory(nome, msg, classificacao) {
     const historySection = document.getElementById('historySection');
     const list = document.getElementById('historyList');
-    
     historySection.style.display = 'block';
 
     const item = document.createElement('div');
-    item.className = 'history-item fade-in';
-    item.style.marginBottom = '10px';
-    item.style.padding = '10px';
-    item.style.borderRadius = '8px';
-    item.style.background = 'rgba(255,255,255,0.05)';
-    item.style.borderLeft = '3px solid var(--primary-color)';
-
-    const time = new Date().toLocaleTimeString();
+    item.className = 'glass-card p-3 mb-2 border-start border-4 border-success';
+    
+    const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     
     item.innerHTML = `
-        <div class="meta" style="font-size: 0.8rem; opacity: 0.7; margin-bottom: 5px;">
-            <span>${time}</span> • 
-            <span class="badge" style="font-size: 0.7rem; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius: 4px;">${classificacao}</span>
+        <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="badge bg-success bg-opacity-25 text-success small py-1 px-2">${classificacao}</span>
+            <small class="text-secondary opacity-75">${time}</small>
         </div>
-        <div class="message" style="font-size: 0.95rem;">${msg}</div>
+        <div class="text-light opacity-90 small text-truncate">${msg}</div>
     `;
 
     list.prepend(item);

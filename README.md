@@ -1,24 +1,30 @@
 # 🎓 Smart Class Q&A
 
-> **O que é este projeto?** Imagine uma sala de aula online onde os alunos enviam centenas de mensagens. O professor não consegue ler tudo. Nosso sistema funciona como um "filtro inteligente" que separa o que é dúvida do que é conversa, avisando o professor apenas quando ele realmente precisa intervir.
+> **O que é este projeto?** Imagine uma sala de aula online onde os alunos enviam centenas de mensagens. O professor não consegue ler tudo. Nosso sistema funciona como um "filtro inteligente" que separa o que é dúvida técnica do que é interação social, alertando o professor e permitindo que ele foque no que realmente importa: **ensinar**.
 
 ---
 
-## 📖 Glossário para Iniciantes
+## 🌟 Status Atual: Fase 2 (Polished & Functional)
+O projeto evoluiu de um protótipo simples para uma aplicação robusta e visualmente profissional.
 
-Se você é novo na nuvem (Cloud), aqui estão os termos que usamos:
-*   **Frontend**: As telas que o usuário vê (o site).
-*   **Backend**: O "cérebro" que roda no servidor, longe dos olhos do usuário.
-*   **AWS S3**: Uma pasta de arquivos na nuvem (onde guardamos o nosso site).
-*   **AWS Lambda**: Uma função que "acorda", faz um trabalho rápido e "dorme". É barata e eficiente.
-*   **DynamoDB**: Nosso caderno de anotações (Banco de Dados). É onde guardamos as dúvidas para sempre.
-*   **Amazon Comprehend**: O serviço de inteligência que "lê" o texto e entende o sentimento.
+### ✅ Novas Funcionalidades
+*   **Design Profissional**: Interfaces migradas para **Bootstrap 5** com tema escuro (Glassmorphism), totalmente responsivas e livres de emojis amadores.
+*   **IA Aprimorada**:
+    *   **Classificação Híbrida**: Combina regras léxicas rigorosas com análise de sentimento e extração de entidades do **Amazon Comprehend**.
+    *   **Blacklist Inteligente**: O sistema agora entende contexto. "Não entendi" é bloqueado se for vago, mas "Não entendi o Lambda" é aprovado.
+    *   **Feedback Loop**: O professor pode sinalizar "Falso Positivo" (Não é dúvida), ajudando a calibrar o sistema.
+*   **UX do Aluno**:
+    *   **Modal de Orientação**: Se o aluno envia uma pergunta vaga, um modal bloqueia a tela orientando-o a adicionar mais detalhes técnicos.
+*   **Dashboard do Professor**:
+    *   **Centro de Comando**: Métricas de IA em tempo real (Acurácia, Confiança, Fallbacks).
+    *   **Top Alunos**: Identifica os alunos mais participativos (maior volume de dúvidas).
+    *   **Auditoria**: Visualização clara do motivo da classificação ("🤖 Motivo: Termo técnico 'EC2' encontrado com sentimento negativo").
 
 ---
 
 ## 🏗️ Arquitetura do Sistema
 
-Aqui está como os componentes conversam entre si. O fluxo segue as setas:
+O sistema é **Serverless**, garantindo custo zero quando ocioso e escala infinita.
 
 ```mermaid
 graph TD
@@ -27,48 +33,61 @@ graph TD
     Professor((👨‍🏫 Professor))
 
     %% Frontend
-    WebApp_Aluno["📱 App do Aluno<br/>(Hospedado no S3)"]
-    WebApp_Prof["💻 Painel do Professor<br/>(Hospedado no S3)"]
+    WebApp_Aluno["📱 Portal do Aluno<br/>(Bootstrap 5 Dark)"]
+    WebApp_Prof["💻 Command Center<br/>(Bootstrap 5 Analytics)"]
 
     %% Backend
-    API["☁️ Gateway de Entrada<br/>(Function URL)"]
-    Lambda["⚙️ Cérebro (Lambda)<br/>(Processa a Lógica)"]
+    API["☁️ Lambda Function URL<br/>(Gateway)"]
+    Logic["⚙️ Core Logic<br/>(Node.js 18)"]
     
     %% Dados e IA
-    DB[("🗄️ Banco de Dados<br/>(DynamoDB)")]
-    IA["🧠 Inteligência Artificial<br/>(Amazon Comprehend)"]
-    SNS["🔔 Notificação SNS<br/>(Avisa o Professor)"]
+    DB[("🗄️ DynamoDB<br/>(Persistência)")]
+    IA["🧠 Amazon Comprehend<br/>(NLP & Sentiment)"]
+    SNS["🔔 Amazon SNS<br/>(Alertas)"]
 
-    %% Fluxo de Envio
-    Aluno -->|Envia Mensagem| WebApp_Aluno
-    WebApp_Aluno -->|Chama API| API
-    API --> Lambda
-
-    %% Processamento
-    Lambda -->|Pergunta: O que é isso?| IA
-    IA -->|Responde: É uma dúvida!| Lambda
+    %% Fluxo
+    Aluno -->|POST /mensagem| WebApp_Aluno
+    WebApp_Aluno --> API --> Logic
     
-    %% Decisão
-    Lambda -->|Salva no Caderno| DB
-    Lambda -->|Envia Alerta| SNS
-    Lambda -.->|Se for conversa fiada| Descarte[🗑️ Mensagem Descartada]
-
-    %% Fluxo de Leitura
-    WebApp_Prof -->|Verifica se há dúvidas| API
-    API -->|Lê do Caderno| DB
-    DB --> WebApp_Prof
-    WebApp_Prof -->|Toca Alerta Sonoro 🔊| Professor
+    Logic -->|1. Regras Locais| Logic
+    Logic -->|2. Validação NLP| IA
+    
+    Logic -->|Salva Dúvida| DB
+    Logic -->|Notifica| SNS
+    
+    WebApp_Prof -->|Polling /duvidas| API
+    API -->|Lê Dados| DB
+    WebApp_Prof -->|Alertas Sonoros| Professor
 ```
 
 ---
 
-## 🚀 Como este projeto ajuda?
+## 📖 Glossário Técnico
 
-1.  **Foco total**: O professor não se distrai com "Bom dia" ou "kkk".
-2.  **Agilidade**: O alerta sonoro garante que a dúvida seja respondida na hora.
-3.  **Organização**: Todas as dúvidas ficam salvas para consulta posterior.
+*   **Frontend**: HTML5, CSS3, Bootstrap 5, Bootstrap Icons, Vanilla JS.
+*   **Backend**: Node.js (AWS Lambda), AWS SDK v3.
+*   **Banco de Dados**: Amazon DynamoDB (NoSQL).
+*   **IA**: Amazon Comprehend (DetectSentiment, DetectKeyPhrases).
+*   **Infra**: Serverless Framework (conceitual) / Shell Scripts manuais.
 
 ---
 
-## 🛠️ Próximos Passos
-Para instalar o projeto, siga o guia em: [**DEPLOY.md**](DEPLOY.md)
+## 🛠️ Instalação e Uso
+
+Para implantar este projeto na sua conta AWS, consulte o guia detalhado em: [**DEPLOY.md**](DEPLOY.md).
+
+### Scripts Disponíveis
+*   `tests/test-classifier.js`: Testa a lógica de classificação local.
+*   `tests/test-filters.js`: Valida casos de borda e blacklist contextual.
+*   `infrastructure/deploy.sh`: (Opcional) Script utilitário para deploy simplificado.
+
+---
+
+## 📊 Roadmap & Progresso
+
+- [x] **Fase 1: MVP** (Protótipo funcional, IA básica).
+- [x] **Fase 2: Refinamento** (UI Bootstrap, Modal de Aviso, Blacklist Contextual, Métricas IA).
+- [ ] **Fase 3: Inteligência Avançada** (Integração com LLM/Claude para respostas automáticas, Persistência de Feedback para retreino).
+
+---
+&copy; 2025 Smart Class Q&A System

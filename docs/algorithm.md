@@ -1,48 +1,78 @@
-# 🧠 O Cérebro do Smart Class
+# 🧠 Algoritmo de Classificação (v2.0)
 
-Para saber se uma mensagem é importante, usamos uma "Peneira Inteligente" que funciona em três camadas. Se uma mensagem passar por todas, ela chega ao professor.
+O coração do Smart Class Q&A é o seu sistema de classificação híbrido, que decide se uma mensagem é uma **DÚVIDA TÉCNICA** (que deve acordar o professor) ou uma **INTERAÇÃO SOCIAL** (que pode ser ignorada ou apenas logada).
+
+A versão 2.0 introduz o conceito de "Contexto sobre Regra", onde a presença de termos técnicos pode anular regras de bloqueio simples.
 
 ---
 
-## 🔬 As 3 Camadas da Peneira
+## 🔬 O Fluxo de Decisão (Pipeline)
+
+O sistema processa cada mensagem em etapas sequenciais:
 
 ```mermaid
 flowchart TD
-    Inicio(["Mensagem do Aluno"]) --> Camada1{"1. Peneira Rápida<br/>(Regras Simples)"}
+    Inicio(["📩 Nova Mensagem"]) --> Normalizacao[("1. Normalização<br/>(Lowercase, remove acentos)")]
     
-    Camada1 -- "Frase muito curta<br/>ou só 'Oi'" --> Lixeira(["🗑️ INTERAÇÃO<br/>Ignorada"])
+    Normalizacao --> AnaliseLexica{"2. Análise Léxica"}
     
-    Camada1 -- "Frase completa ou<br/>com interrogação" --> Camada2{"2. Peneira Técnica<br/>(Palavras-Chave)"}
-
-    Camada2 -- "Tem '?' ou termos como<br/>'Lambda', 'Erro', 'Acesso'" --> Camada3{"3. Peneira de IA<br/>(Amazon Comprehend)"}
-    Camada2 -- "Saudações educadas<br/>'Obrigado', 'Valeu'" --> Lixeira
-
-    Camada3 -- "Detecta Dúvida ou<br/>Problema Técnico" --> Sucesso[["✅ DÚVIDA SALVA"]]
-    Camada3 -- "Elogio social sem<br/>conteúdo técnico" --> Lixeira
-
-    Sucesso --> Notificar["🔔 Avisar Professor"]
+    AnaliseLexica -- "Identifica Termos" --> TermosTecnicos["Termos AWS/Tech<br/>(Lambda, EC2, Erro...)"]
+    AnaliseLexica -- "Identifica Padrões" --> Blacklist["Blacklist<br/>('Não entendi', 'Oi')"]
+    
+    TermosTecnicos --> DecisaoLogica{"3. Lógica Contextual"}
+    Blacklist --> DecisaoLogica
+    
+    DecisaoLogica -- "Tem Termo Técnico?" --> SimTermo["✅ Sim (Contexto Rico)"]
+    DecisaoLogica -- "Sem Termo Técnico?" --> NaoTermo["❌ Não (Vago)"]
+    
+    SimTermo --> IA{"4. Validação IA<br/>(Amazon Comprehend)"}
+    NaoTermo -- "Está na Blacklist?" --> Lixeira(["🗑️ Rejeitar (VAGA)"])
+    NaoTermo -- "Score Baixo?" --> Lixeira
+    
+    IA -- "Confiança Alta +<br/>Sentimento Negativo/Neutro" --> Aprovado[["🔔 DÚVIDA APROVADA"]]
+    IA -- "Confiança Baixa" --> Fallback["⚠️ Fallback (Usa Regra Local)"]
+    
+    Aprovado --> Persistencia[("DynamoDB + SNS")]
 ```
 
 ---
 
-## 📝 O que cada camada faz?
+## 📝 Detalhes das Camadas
 
-### 1. Camada de Regras (O "Segurança")
-Esta camada é a mais rápida. Ela olha o tamanho da frase. 
-*   Se o aluno digitar apenas "Oi", o sistema já sabe que não é uma dúvida técnica e nem gasta tempo (ou dinheiro) chamando a Inteligência Artificial.
+### 1. Camada de Regras & Contexto
+Diferente da versão anterior, a blacklist não é absoluta.
+*   **Antes:** Se a mensagem continha "não entendi", era rejeitada (assumia-se vago).
+*   **Agora:** 
+    *   "Não entendi nada" -> **REJEITADA** (Está na blacklist E não tem termo técnico).
+    *   "Não entendi o Comprehend" -> **APROVADA** (Termo técnico "Comprehend" anula a blacklist).
 
-### 2. Camada Técnica (O "Especialista")
-Aqui o sistema procura por palavras importantes da nossa aula, como:
-*   **Serviços AWS**: Lambda, S3, EC2.
-*   **Sinais de Dúvida**: "Como", "Porque", "Erro", "Não funciona".
+### 2. Vocabulário Expandido (`constants.js`)
+O sistema agora reconhece mais de 50 termos técnicos, incluindo:
+*   **Serviços de IA:** Comprehend, Rekognition, Polly, Bedrock.
+*   **Infraestrutura:** EC2, Lambda, VPC, Subnet.
+*   **Conceitos:** Erro, Log, Console, Tela, Configuração.
 
-### 3. Camada de IA (O "Mestre")
-Esta é a parte mais avançada. Usamos o **Amazon Comprehend** para entender o *sentimento* da frase. 
-*   Se o aluno estiver frustrado ("Não estou conseguindo acessar o link"), a IA detecta isso como algo urgente.
-*   Se for apenas um elogio ("Aula top professor!"), a IA entende que é uma interação social e não interrompe o professor.
+### 3. Validação de IA (Amazon Comprehend)
+Se a mensagem passa pelas regras locais, ela é enriquecida pela IA da AWS:
+*   **Sentimento:** Mensagens com sentimento `NEGATIVO` (frustração) ou `NEUTRO` (pergunta técnica direta) ganham pontos.
+*   **Key Phrases:** A IA extrai entidades. Se a confiança da extração for alta, o score da mensagem sobe.
 
 ---
 
-## 💡 Por que usamos IA se já temos regras?
-As regras são ótimas para o óbvio, mas a IA é necessária para o **contexto**. 
-Exemplo: "O S3 está dando erro" não tem um ponto de interrogação, mas é claramente uma dúvida/problema que o professor precisa saber. A IA consegue perceber isso!
+## 🔄 O Loop de Feedback (Aprendizado)
+
+O sistema agora possui um mecanismo de correção humana:
+1.  Se o classificador errar e marcar uma conversa como dúvida, ela aparece no dashboard.
+2.  O professor clica no botão **"✕" (Falso Positivo)**.
+3.  O sistema envia um evento para o endpoint `/feedback`.
+4.  A mensagem é marcada no banco de dados com `correctClassification: 'INTERACAO'`.
+5.  *(Futuro)* Esses dados serão usados para re-treinar o modelo ou ajustar os pesos do classificador automaticamente.
+
+---
+
+## 📊 Métricas de Decisão
+
+O dashboard exibe em tempo real:
+*   **Confiança Média:** Quão seguro o sistema está de suas classificações.
+*   **Taxa de Fallback:** Quantas vezes o Amazon Comprehend falhou e o sistema teve que confiar apenas nas regras locais.
+*   **Score de IA:** Uma pontuação de 0 a 100 calculada combinando Regras + Sentimento + Entidades.

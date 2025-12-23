@@ -1,5 +1,5 @@
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
-const { DynamoDBDocumentClient, PutCommand, QueryCommand, UpdateCommand } = require("@aws-sdk/lib-dynamodb");
+const { DynamoDBDocumentClient, PutCommand, QueryCommand, UpdateCommand, ScanCommand } = require("@aws-sdk/lib-dynamodb");
 
 class DynamoDBService {
   constructor(tableName) {
@@ -40,6 +40,48 @@ class DynamoDBService {
     });
     const result = await this.docClient.send(command);
     return result.Items || [];
+  }
+
+  async saveFeedback(feedbackData) {
+    const command = new UpdateCommand({
+      TableName: this.tableName,
+      Key: { 
+        messageId: feedbackData.messageId, 
+        timestamp: feedbackData.timestamp 
+      },
+      UpdateExpression: 'SET feedback = :f, correctClassification = :c',
+      ExpressionAttributeValues: {
+        ':f': true,
+        ':c': feedbackData.correctClassification
+      }
+    });
+    return await this.docClient.send(command);
+  }
+
+  async getMessagesByDate(dateString) {
+      // Scan para filtrar por data (em produção usar GSI)
+      const command = new ScanCommand({
+          TableName: this.tableName
+      });
+      
+      const response = await this.docClient.send(command);
+      const items = response.Items || [];
+      
+      if (!dateString) return items;
+      
+      // Ajuste de fuso horário simples (considerando UTC do timestamp)
+      // O dateString vem como YYYY-MM-DD
+      
+      return items.filter(item => {
+          // Converte timestamp (ms) para YYYY-MM-DD
+          const date = new Date(item.timestamp);
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const itemDateString = `${year}-${month}-${day}`;
+          
+          return itemDateString === dateString;
+      });
   }
 
   async updateMessageStatus(messageId, timestamp, newStatus) {

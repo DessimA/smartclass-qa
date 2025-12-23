@@ -3,84 +3,211 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Class Q&A - Professor</title>
+    <title>Smart Class Q&A - Professor Dashboard</title>
+    
+    <!-- Bootstrap 5 & Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    
     <link rel="stylesheet" href="../shared/styles.css">
     <link rel="icon" type="image/x-icon" href="../assets/favicon.ico">
     <style>
         body {
-            background-image: url('../assets/bg-professor.jpg');
+            background: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)), url('../assets/bg-professor.jpg') no-repeat center center fixed;
+            background-size: cover;
+            color: white;
+            min-height: 100vh;
+        }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.95);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+        }
+        .stat-card {
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            background: rgba(15, 23, 42, 1);
+        }
+        .question-card {
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+        .question-card.answered {
+            opacity: 0.65;
+            background: rgba(0, 0, 0, 0.4);
+            border-left: 4px solid #64748b !important;
+        }
+        .metric-box {
+            background: rgba(15, 23, 42, 0.9);
+            border-left: 4px solid #3b82f6;
+        }
+        .logo-img-circle {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(59, 130, 246, 0.5);
+        }
+        .avatar-circle {
+            width: 40px;
+            height: 40px;
+            background: #3b82f6;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+        }
+        .text-light-50 {
+            color: #e2e8f0 !important;
         }
     </style>
 </head>
 <body>
     
-    <div class="main-container">
+    <div class="container py-4">
         
-        <header class="app-header glass-panel" style="padding: 1.5rem 2rem; margin-bottom: 2rem; border-radius: 16px;">
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <img src="../assets/logo.png" alt="Logo" class="logo-img">
-                <div class="header-content">
-                    <h1 style="font-size: 1.5rem; margin: 0;">Dashboard Professor</h1>
-                    <p style="color: var(--text-secondary); font-size: 0.9rem;">Centro de Comando</p>
+        <!-- Header -->
+        <header class="glass-panel p-3 mb-4 d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-3">
+                <img src="../assets/logo.png" alt="Logo" class="logo-img-circle shadow">
+                <div>
+                    <h1 class="h5 mb-0 fw-bold">Dashboard de Operações</h1>
+                    <small class="text-secondary fw-bold" style="letter-spacing: 1px; font-size: 0.65rem;">COMANDO PROFESSOR</small>
                 </div>
             </div>
             
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <button id="btnAudio" onclick="toggleAudio()" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; background: rgba(16, 185, 129, 0.4); border: 1px solid #10B981;">
-                    <span>🔊</span> Som On
+            <div class="d-flex align-items-center gap-2">
+                <button id="btnAudio" onclick="toggleAudio()" class="btn btn-outline-success btn-sm px-3 rounded-pill d-flex align-items-center gap-2">
+                    <i class="bi bi-volume-up-fill"></i> Som On
                 </button>
-                <div style="background: rgba(0,0,0,0.3); padding: 0.5rem 1rem; border-radius: 50px; font-size: 0.85rem; border: 1px solid var(--glass-border); display: flex; align-items: center; gap: 8px;">
-                    <span id="refreshIndicator" style="display: flex; align-items: center; gap: 6px;">
-                        <span style="width: 8px; height: 8px; background: var(--success); border-radius: 50%; display: inline-block;"></span>
-                        <span id="refreshText">Conectado</span>
+                <div class="bg-dark bg-opacity-50 px-3 py-1 rounded-pill border border-secondary border-opacity-25 small">
+                    <span id="refreshIndicator" class="d-flex align-items-center gap-2">
+                        <span class="spinner-grow spinner-grow-sm text-success" role="status"></span>
+                        <span id="refreshText" class="small">Sincronizado</span>
                     </span>
                 </div>
             </div>
         </header>
 
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-value" id="statTotal" style="color: var(--text-primary)">0</div>
-                <div class="stat-label">Total Recebido</div>
-            </div>
-            <div class="stat-card" style="border-bottom: 4px solid var(--warning);">
-                <div class="stat-value" id="statPending" style="color: var(--warning)">0</div>
-                <div class="stat-label">Pendentes</div>
-            </div>
-            <div class="stat-card" style="border-bottom: 4px solid var(--success);">
-                <div class="stat-value" id="statAnswered" style="color: var(--success)">0</div>
-                <div class="stat-label">Respondidas</div>
-            </div>
-        </div>
-
-        <div class="glass-panel" style="padding: 1.5rem; margin-bottom: 2rem; border-radius: 16px;">
-            <div style="display: flex; gap: 1rem; align-items: center;">
-                <div style="flex: 1; position: relative;">
-                    <input type="text" class="form-control" id="searchInput" placeholder="Buscar por aluno, email ou conteúdo..." style="padding-left: 2.5rem; background: rgba(0,0,0,0.2);">
-                    <span style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); opacity: 0.5;">🔍</span>
+        <!-- Stats Grid -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <div class="stat-card border-bottom border-primary border-4">
+                    <div class="small text-secondary text-uppercase mb-1">Total Recebido</div>
+                    <div class="h2 mb-0 fw-bold" id="statTotal">0</div>
                 </div>
-                <button class="btn btn-secondary" onclick="carregarDuvidas()" style="width: auto; padding: 0.8rem 1.5rem;">
-                    Atualizar
-                </button>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card border-bottom border-warning border-4">
+                    <div class="small text-secondary text-uppercase mb-1">Pendentes</div>
+                    <div class="h2 mb-0 fw-bold text-warning" id="statPending">0</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card border-bottom border-success border-4">
+                    <div class="small text-secondary text-uppercase mb-1">Respondidas</div>
+                    <div class="h2 mb-0 fw-bold text-success" id="statAnswered">0</div>
+                </div>
             </div>
         </div>
 
+        <!-- IA Analytics Section -->
+        <div class="glass-panel p-4 mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h6 class="mb-0 fw-bold text-primary text-uppercase small d-flex align-items-center gap-2">
+                    <i class="bi bi-cpu"></i> Inteligência Artificial & Métricas
+                </h6>
+            </div>
+            
+            <div class="row g-3">
+                <div class="col-6 col-lg-3">
+                    <div class="metric-box p-3 rounded">
+                        <small class="text-secondary d-block mb-1 x-small">Acurácia</small>
+                        <span id="iaAccuracy" class="h4 mb-0 fw-bold text-success">--</span>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="metric-box p-3 rounded" style="border-color: #0d6efd;">
+                        <small class="text-secondary d-block mb-1 x-small">Confiança</small>
+                        <span id="iaConfidence" class="h4 mb-0 fw-bold text-primary">--</span>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="metric-box p-3 rounded" style="border-color: #f59e0b;">
+                        <small class="text-secondary d-block mb-1 x-small">Chamadas</small>
+                        <span id="iaCallsCount" class="h4 mb-0 fw-bold text-warning">--</span>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="metric-box p-3 rounded" style="border-color: #ef4444;">
+                        <small class="text-secondary d-block mb-1 x-small">Fallbacks</small>
+                        <span id="iaFallbackRate" class="h4 mb-0 fw-bold text-danger">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4 mt-2">
+                <div class="col-lg-6">
+                    <div class="pt-3 mt-3 border-top border-secondary border-opacity-10">
+                        <small class="text-secondary d-block mb-3 text-uppercase x-small">Operadores com mais Dúvidas</small>
+                        <div id="topStudentsList" class="small">
+                            <p class="text-secondary py-3">Aguardando dados da sessão...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6 d-none d-lg-block">
+                    <div class="pt-3 mt-3 border-top border-secondary border-opacity-10">
+                         <small class="text-secondary d-block mb-3 text-uppercase x-small">Diagnóstico do Classificador</small>
+                         <div id="scoreDistribution" class="stat-card p-3 d-flex align-items-center justify-content-center text-secondary small" style="min-height: 100px;">
+                            Monitor de distribuição pronto
+                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search & Tools -->
+        <div class="glass-panel p-3 mb-4">
+            <div class="row g-2 align-items-center">
+                <div class="col-md-9 position-relative">
+                    <i class="bi bi-search position-absolute top-50 translate-middle-y ms-3 text-secondary"></i>
+                    <input type="text" class="form-control bg-dark bg-opacity-50 border-secondary border-opacity-25 ps-5 text-white" id="searchInput" placeholder="Pesquisar por conteúdo, aluno ou categoria...">
+                </div>
+                <div class="col-md-3">
+                    <button class="btn btn-primary w-100 fw-bold" onclick="carregarDuvidas()">
+                        <i class="bi bi-arrow-clockwise me-2"></i> Atualizar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Questions List -->
         <div id="questionsContainer">
-            <div style="text-align: center; padding: 4rem; opacity: 0.7;">
-                <div class="spinner" style="width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.1); border-top-color: var(--primary-color); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
-                <p>Sincronizando feed de dúvidas...</p>
+            <div class="text-center py-5 opacity-50">
+                <div class="spinner-border text-primary mb-3" role="status"></div>
+                <p>Interceptando comunicações...</p>
             </div>
         </div>
 
-        <footer style="text-align: center; margin-top: 4rem; color: var(--text-secondary); font-size: 0.85rem; padding-bottom: 2rem;">
-            <p>&copy; 2025 Smart Class Q&A System</p>
+        <footer class="text-center mt-5 text-secondary x-small py-4 border-top border-secondary border-opacity-10">
+            <p>&copy; 2025 Smart Class Q&A System &bull; Secure Protocol AES-256</p>
         </footer>
     </div>
 
-    <style>
-        @keyframes spin { to { transform: rotate(360deg); } }
-    </style>
-
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="../shared/config.js"></script>
     <script src="app.js"></script>
 </body>
