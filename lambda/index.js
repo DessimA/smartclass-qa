@@ -12,7 +12,10 @@ const snsService = new SNSService(SNS_TOPIC_ARN);
 const classifier = new MessageClassifier();
 const aiValidator = new AIValidator();
 
-const headers = { "Content-Type": "application/json" };
+// REMOVIDO: Configuração manual de CORS (Deixando para a infraestrutura AWS)
+const headers = { 
+    "Content-Type": "application/json"
+};
 
 exports.handler = async (event) => {
     console.log("EVENTO COMPLETO:", JSON.stringify(event));
@@ -47,7 +50,7 @@ exports.handler = async (event) => {
 
         // 3. Roteamento
         
-        // Tratamento explícito de OPTIONS (CORS)
+        // Tratamento explícito de OPTIONS (CORS) - Redundante com infra, mas inofensivo
         if (method === 'OPTIONS') {
             statusCode = 200;
             body = { message: "CORS OK" };
@@ -87,6 +90,7 @@ exports.handler = async (event) => {
                 status: 'PENDING',
                 classification: aiValidation.classification, // Usamos a classificação da IA
                 confidence: aiValidation.confidence * 100,     // Normalizamos para 0-100
+                aiScore: aiValidation.aiScore, // FIX: Saving AI Score for metrics
                 aiReason: aiValidation.reason,
                 ruleClassification: classificationResult.classification // Guardamos a original para auditoria
             };
@@ -142,6 +146,77 @@ exports.handler = async (event) => {
             const { messageId, timestamp, status } = requestBody;
             await dbService.updateMessageStatus(messageId, timestamp, status);
             body = { message: "Atualizado" };
+        }
+
+        // POST /feedback
+        else if (path === '/feedback' && method === 'POST') {
+            const { messageId, timestamp, correctClassification } = requestBody;
+            
+            if (!messageId || !timestamp || !correctClassification) {
+                statusCode = 400;
+                body = { error: "Missing required fields: messageId, timestamp, correctClassification" };
+            } else {
+                try {
+                    await dbService.saveFeedback({
+                        messageId,
+                        timestamp,
+                        correctClassification
+                    });
+                    body = { message: "Feedback registrado com sucesso!" };
+                } catch (e) {
+                    console.error("Erro ao salvar feedback:", e);
+                    statusCode = 500;
+                    body = { error: "Erro interno ao salvar feedback" };
+                }
+            }
+        }
+
+        // GET /relatorio
+        else if (path === '/relatorio' && method === 'GET') {
+            const { data } = event.queryStringParameters || {};
+            
+            // Se não vier data, pega a data de hoje
+            const targetDate = data || new Date().toISOString().split('T')[0];
+            
+            try {
+                const messages = await dbService.getMessagesByDate(targetDate);
+                
+                // Análise básica
+                const total = messages.length;
+                const duvidas = messages.filter(m => m.classification === 'DUVIDA').length;
+                const interacoes = messages.filter(m => m.classification === 'INTERACAO').length;
+                const vagas = messages.filter(m => m.classification === 'VAGA').length;
+                const respondidas = messages.filter(m => m.status === 'Respondida').length;
+                
+                // Top alunos (quem mandou mais dúvidas)
+                const studentCounts = {};
+                messages.filter(m => m.classification === 'DUVIDA').forEach(m => {
+                    const email = m.email || 'anonimo';
+                    studentCounts[email] = (studentCounts[email] || 0) + 1;
+                });
+                
+                const topStudents = Object.entries(studentCounts)
+                    .map(([email, count]) => ({ email, count }))
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 5);
+
+                body = {
+                    data: targetDate,
+                    totalMensagens: total,
+                    metricas: {
+                        duvidas,
+                        interacoes,
+                        vagas,
+                        respondidas,
+                        taxaResposta: duvidas > 0 ? ((respondidas / duvidas) * 100).toFixed(1) + '%' : '0%'
+                    },
+                    topAlunos: topStudents
+                };
+            } catch (e) {
+                console.error("Erro ao gerar relatório:", e);
+                statusCode = 500;
+                body = { error: "Erro ao gerar relatório" };
+            }
         }
         
         // Rota não encontrada

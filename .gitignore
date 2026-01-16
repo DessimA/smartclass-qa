@@ -1,0 +1,29 @@
+# Credenciais e Configurações Dinâmicas
+frontend/shared/config.js
+.env
+*.zip
+function.zip
+
+# Scripts de automação local
+commit.sh
+infrastructure/investigate.sh
+infrastructure/test-iam.sh
+infrastructure/fix-cors.sh
+infrastructure/list-resources.sh
+
+# Arquivos de Debug e Resultados de Teste
+debug-invoke.json
+debug-payload.json
+invoke-result.json
+response.json
+test-payload.json
+test-results.json
+
+# Node dependencies
+node_modules/
+lambda/node_modules/
+
+# Logs e Temporários
+*.log
+.DS_Store
+Thumbs.db

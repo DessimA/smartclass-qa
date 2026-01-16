@@ -1,14 +1,11 @@
-// Variáveis de controle de áudio e estado
 let audioEnabled = true;
 let audioContext = null;
-let knownMessageIds = new Set(); // Para rastrear IDs já vistos e tocar som apenas nos novos
+let knownMessageIds = new Set();
 
 document.addEventListener('DOMContentLoaded', () => {
     carregarDuvidas();
-    // Atualiza a cada 5 segundos para garantir feedback rápido em aula
     setInterval(carregarDuvidas, 5000); 
 
-    // Ativador de áudio na primeira interação (exigência do navegador)
     const unlockAudio = () => {
         if (audioEnabled && !audioContext) {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -16,237 +13,206 @@ document.addEventListener('DOMContentLoaded', () => {
         if (audioContext && audioContext.state === 'suspended') {
             audioContext.resume();
         }
-        // Uma vez desbloqueado, não precisamos mais monitorar
         document.removeEventListener('click', unlockAudio);
     };
     document.addEventListener('click', unlockAudio);
 
-    const container = document.getElementById('questionsContainer');
-    
-    // Configura filtro de busca
     const searchInput = document.getElementById('searchInput');
     if(searchInput) {
         searchInput.addEventListener('input', () => {
-             // Força re-renderização usando cache atual (se tivéssemos cache global)
-             // Como não temos, chamamos carregarDuvidas que faz fetch de novo (simples)
              carregarDuvidas(); 
         });
     }
-
-    container.addEventListener('click', async (event) => {
-        if (event.target.closest('.btn-marcar-respondida')) {
-            const button = event.target.closest('.btn-marcar-respondida');
-            const messageId = button.dataset.messageId;
-            const timestamp = parseInt(button.dataset.timestamp, 10);
-
-            button.disabled = true;
-            const originalText = button.innerHTML;
-            button.innerText = 'Atualizando...';
-
-            try {
-                await marcarComoRespondida(messageId, timestamp);
-            } catch (error) {
-                console.error('Falha ao marcar como respondida:', error);
-                button.innerText = 'Erro!';
-            }
-        }
-    });
 });
 
-/**
- * Ativa ou desativa o som de notificação
- * Necessário interação do usuário devido a políticas do navegador
- */
 function toggleAudio() {
     const btn = document.getElementById('btnAudio');
     audioEnabled = !audioEnabled;
 
     if (audioEnabled) {
-        // Inicia o AudioContext na primeira interação
-        if (!audioContext) {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        // Retoma se estiver suspenso
-        if (audioContext.state === 'suspended') {
-            audioContext.resume();
-        }
-        
-        btn.innerHTML = '<span>🔊</span> Som On';
-        btn.style.background = 'rgba(16, 185, 129, 0.4)'; // Verde suave
-        btn.style.borderColor = '#10B981';
-        
-        // Toca um som de teste curto
+        if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === 'suspended') audioContext.resume();
+        btn.innerHTML = '<i class="bi bi-volume-up-fill me-2"></i> Som On';
+        btn.className = 'btn btn-outline-success btn-sm px-3 rounded-pill d-flex align-items-center gap-2';
         playNotificationSound(true);
     } else {
-        btn.innerHTML = '<span>🔇</span> Som Off';
-        btn.style.background = 'rgba(0,0,0,0.4)';
-        btn.style.borderColor = 'var(--glass-border)';
+        btn.innerHTML = '<i class="bi bi-volume-mute-fill me-2"></i> Som Off';
+        btn.className = 'btn btn-outline-secondary btn-sm px-3 rounded-pill d-flex align-items-center gap-2';
     }
 }
 
-/**
- * Gera um "ding" usando Web Audio API
- * @param {boolean} isTest - Se for teste, toca mais baixo e curto
- */
 function playNotificationSound(isTest = false) {
     if (!audioEnabled || !audioContext) return;
-
     const osc = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
-
     osc.connect(gainNode);
     gainNode.connect(audioContext.destination);
-
-    // Frequência tipo "Ding" (senoidal)
     osc.type = 'sine';
-    // Começa em 800Hz e sobe um pouco para dar um efeito "chime"
     osc.frequency.setValueAtTime(800, audioContext.currentTime);
     osc.frequency.exponentialRampToValueAtTime(1200, audioContext.currentTime + 0.1);
-
-    // Volume envelope
-    const volume = isTest ? 0.1 : 0.3;
+    const volume = isTest ? 0.05 : 0.2;
     gainNode.gain.setValueAtTime(0, audioContext.currentTime);
     gainNode.gain.linearRampToValueAtTime(volume, audioContext.currentTime + 0.05);
     gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.5);
-
     osc.start();
     osc.stop(audioContext.currentTime + 0.5);
 }
 
-async function marcarComoRespondida(messageId, timestamp) {
-    const url = `${window.API_CONFIG.baseURL}/status`;
-    
-    await fetch(url, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            messageId: messageId,
-            timestamp: timestamp,
-            status: 'Respondida'
-        })
-    });
-
-    await new Promise(r => setTimeout(r, 800));
-    await carregarDuvidas();
-}
-
 async function carregarDuvidas() {
-    const container = document.getElementById('questionsContainer');
     const refreshText = document.getElementById('refreshText');
-    
     if(refreshText) refreshText.innerText = "Sincronizando...";
 
     try {
-        const url = `${window.API_CONFIG.baseURL}${window.API_CONFIG.endpoints.duvidas}`;
-        const response = await fetch(url);
+        const response = await window.authenticatedFetch(`${window.API_CONFIG.baseURL}${window.API_CONFIG.endpoints.duvidas}`);
         let items = await response.json();
+        if (!Array.isArray(items)) items = [];
 
-        // GARANTIA: Se não for array (ex: erro da API), transforma em lista vazia
-        if (!Array.isArray(items)) {
-            console.error("API não retornou uma lista:", items);
-            items = [];
-        }
-
-        // Atualizar estatísticas
         document.getElementById('statTotal').innerText = items.length;
         document.getElementById('statPending').innerText = items.filter(i => i.classification === 'DUVIDA' && i.status !== 'Respondida').length;
         document.getElementById('statAnswered').innerText = items.filter(i => i.status === 'Respondida').length;
+        
+        updateIAMetrics(items);
+        updateTopStudents(items);
 
-        // Lógica de Som: Verificar se há novos itens pendentes
         let hasNewQuestions = false;
         items.forEach(item => {
-            // Se é dúvida, não está respondida e não vimos esse ID ainda
             if (item.classification === 'DUVIDA' && item.status === 'PENDING' && !knownMessageIds.has(item.messageId)) {
                 hasNewQuestions = true;
                 knownMessageIds.add(item.messageId);
             }
-            // Adiciona todos ao set para evitar repetições futuras se a página recarregar
-            // (mas o som só toca se o ID não estava lá antes desta execução específica, 
-            // na prática o 'knownMessageIds' reseta no F5, o que é esperado: toca som ao abrir se tiver pendente)
             knownMessageIds.add(item.messageId);
         });
 
-        // Toca o som se houver novidade e não for a primeira carga (opcional, aqui toca na primeira se tiver pendente)
-        if (hasNewQuestions) {
-            playNotificationSound();
-        }
-
+        if (hasNewQuestions) playNotificationSound();
         renderizarLista(items);
 
     } catch (error) {
         console.error(error);
-        container.innerHTML = `<div style="color:#ef4444; text-align:center; padding: 20px; background: rgba(239, 68, 68, 0.1); border-radius: 12px;">Erro de conexão: ${error.message}</div>`;
     } finally {
-        if(refreshText) refreshText.innerText = "Conectado";
+        if(refreshText) refreshText.innerText = "Sincronizado";
     }
 }
 
 function renderizarLista(items) {
     const container = document.getElementById('questionsContainer');
-    const termoBuscaInput = document.getElementById('searchInput');
-    const termoBusca = termoBuscaInput ? termoBuscaInput.value.toLowerCase() : '';
+    const termoBusca = document.getElementById('searchInput').value.toLowerCase();
 
     if (items.length === 0) {
-        container.innerHTML = '<div class="empty-state" style="text-align:center; padding: 40px; opacity: 0.5;"><h3>Nenhuma mensagem encontrada</h3></div>';
+        container.innerHTML = '<div class="text-center py-5 opacity-25"><h6>Nenhuma comunicação interceptada</h6></div>';
         return;
     }
 
     const html = items
         .filter(item => {
-            // Filtro de busca local
             if(!termoBusca) return true;
             return (item.message && item.message.toLowerCase().includes(termoBusca)) || 
                    (item.email && item.email.toLowerCase().includes(termoBusca));
         })
         .map(item => {
-            const isDuvida = item.classification === 'DUVIDA';
-            
-            // Só exibe se for DÚVIDA (embora o backend já filtre, é bom garantir visualmente)
-            if (!isDuvida) return ''; 
+            if (item.classification !== 'DUVIDA') return ''; 
 
-            const badgeClass = item.confidence > 80 ? 'confidence-high' : 'confidence-medium';
-            const cardClass = item.status === 'Respondida' ? 'question-card answered' : 'question-card';
-            
-            const msgTexto = item.message ? item.message : '<em>(Mensagem sem texto)</em>';
-            const avatarInitial = item.email ? item.email.charAt(0).toUpperCase() : '?';
+            const isAnswered = item.status === 'Respondida';
+            const confidenceClass = item.confidence > 80 ? 'text-success' : (item.confidence > 50 ? 'text-warning' : 'text-danger');
+            const cardClass = `question-card p-3 mb-3 border-start border-4 ${isAnswered ? 'answered border-secondary' : 'border-primary'}`;
+            const avatarInitial = (item.email || '?').charAt(0).toUpperCase();
 
-            const acaoBotao = item.status !== 'Respondida' 
-                ? `<button class="btn-marcar-respondida" data-message-id="${item.messageId}" data-timestamp="${item.timestamp}">
-                     <span>✓</span> Marcar como Respondida
-                   </button>`
-                : '';
+            const acoes = !isAnswered 
+                ? `<div class="d-flex gap-2">
+                     <button class="btn btn-primary btn-sm px-3" onclick="marcarComoRespondida('${item.messageId}', ${item.timestamp})">
+                        <i class="bi bi-check2-circle me-1"></i> Resolver
+                     </button>
+                     <button class="btn btn-outline-danger btn-sm px-2" onclick="rejeitarMensagem('${item.messageId}', ${item.timestamp})" title="Sinalizar Falso Positivo">
+                        <i class="bi bi-x-lg"></i>
+                     </button>
+                   </div>`
+                : '<span class="badge bg-secondary opacity-50"><i class="bi bi-check-all me-1"></i> RESOLVIDO</span>';
 
             return `
             <div class="${cardClass}">
-                <div class="question-header">
-                    <div class="student-info">
-                        <div class="avatar-placeholder">${avatarInitial}</div>
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="avatar-circle small">${avatarInitial}</div>
                         <div>
-                            <div class="student-name">${item.email || 'Anônimo'}</div>
-                            <div class="question-time">${new Date(item.timestamp).toLocaleString()}</div>
+                            <div class="fw-bold mb-0" style="font-size: 0.9rem;">${item.email || 'Anônimo'}</div>
+                            <div class="text-secondary" style="font-size: 0.75rem;">${new Date(item.timestamp).toLocaleString()}</div>
                         </div>
                     </div>
-                    <div class="question-badges">
-                        <span class="badge ${badgeClass}">${item.classification} ${Math.round(item.confidence)}%</span>
-                        ${item.status === 'Respondida' ? '<span class="badge status-answered">RESOLVIDO</span>' : ''}
+                    <div class="text-end">
+                        <span class="badge bg-dark bg-opacity-50 border border-secondary border-opacity-25 small mb-1">
+                            ${item.classification}
+                        </span>
+                        <div class="${confidenceClass} fw-bold" style="font-size: 0.7rem;">
+                            <i class="bi bi-shield-check"></i> ${Math.round(item.confidence)}%
+                        </div>
                     </div>
                 </div>
                 
-                <div class="question-text">${msgTexto}</div>
+                <div class="mb-3 text-light-50" style="font-size: 0.95rem; line-height: 1.5;">${item.message}</div>
                 
-                <div class="question-footer">
-                    <div class="ai-reason">
-                        <span>🤖</span> ${item.aiReason || 'Análise indisponível'}
+                <div class="d-flex justify-content-between align-items-center pt-3 border-top border-secondary border-opacity-10">
+                    <div class="text-secondary d-flex align-items-center gap-2" style="font-size: 0.75rem;">
+                        <i class="bi bi-robot"></i> 
+                        <span class="opacity-75">${item.aiReason || 'Análise heurística aplicada'}</span>
                     </div>
-                    <div class="question-actions">
-                        ${acaoBotao}
-                    </div>
+                    <div>${acoes}</div>
                 </div>
             </div>
             `;
         }).join('');
 
-    container.innerHTML = html || '<div class="empty-state" style="text-align:center; padding: 40px; opacity: 0.5;"><h3>Nenhuma dúvida encontrada na busca</h3></div>';
+    container.innerHTML = html || '<div class="text-center py-5 opacity-25"><h6>Nenhum resultado para a busca</h6></div>';
+}
+
+async function marcarComoRespondida(messageId, timestamp) {
+    try {
+        await window.authenticatedFetch(`${window.API_CONFIG.baseURL}/status`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messageId, timestamp, status: 'Respondida' })
+        });
+        carregarDuvidas();
+    } catch (e) { console.error(e); }
+}
+
+async function rejeitarMensagem(messageId, timestamp) {
+    if(!confirm('Confirmar correção de IA: Esta mensagem não é uma dúvida?')) return;
+    try {
+        await window.authenticatedFetch(`${window.API_CONFIG.baseURL}/feedback`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messageId, timestamp, correctClassification: 'INTERACAO' })
+        });
+        await marcarComoRespondida(messageId, timestamp);
+    } catch (e) { console.error(e); }
+}
+
+function updateTopStudents(items) {
+    const container = document.getElementById('topStudentsList');
+    if(!container) return;
+    const counts = {};
+    items.forEach(item => {
+        if (item.classification === 'DUVIDA') counts[item.email || 'Anônimo'] = (counts[item.email || 'Anônimo'] || 0) + 1;
+    });
+    const top = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0, 5);
+    if(top.length === 0) return;
+    container.innerHTML = top.map(([email, count], i) => `
+        <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-white border-opacity-5">
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-primary fw-bold" style="width: 20px;">${i+1}</span>
+                <span class="opacity-75">${email}</span>
+            </div>
+            <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill">${count}</span>
+        </div>
+    `).join('');
+}
+
+function updateIAMetrics(messages) {
+    const withAI = messages.filter(m => m.confidence !== undefined);
+    if (withAI.length === 0) return;
+    const avgConf = withAI.reduce((sum, m) => sum + m.confidence, 0) / withAI.length;
+    document.getElementById('iaConfidence').textContent = avgConf.toFixed(1) + '%';
+    document.getElementById('iaCallsCount').textContent = withAI.length;
+    const fallbacks = withAI.filter(m => !m.aiScore || m.aiScore === 0).length;
+    document.getElementById('iaFallbackRate').textContent = ((fallbacks / withAI.length) * 100).toFixed(1) + '%';
+    document.getElementById('iaAccuracy').textContent = avgConf.toFixed(1) + '%';
 }
