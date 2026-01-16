@@ -12,7 +12,10 @@ const snsService = new SNSService(SNS_TOPIC_ARN);
 const classifier = new MessageClassifier();
 const aiValidator = new AIValidator();
 
-const headers = { "Content-Type": "application/json" };
+// REMOVIDO: Configuração manual de CORS (Deixando para a infraestrutura AWS)
+const headers = { 
+    "Content-Type": "application/json"
+};
 
 exports.handler = async (event) => {
     console.log("EVENTO COMPLETO:", JSON.stringify(event));
@@ -47,7 +50,7 @@ exports.handler = async (event) => {
 
         // 3. Roteamento
         
-        // Tratamento explícito de OPTIONS (CORS)
+        // Tratamento explícito de OPTIONS (CORS) - Redundante com infra, mas inofensivo
         if (method === 'OPTIONS') {
             statusCode = 200;
             body = { message: "CORS OK" };

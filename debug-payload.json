@@ -1,0 +1,10 @@
+{
+  "rawPath": "/mensagem",
+  "requestContext": {
+    "http": {
+      "method": "POST"
+    }
+  },
+  "body": "{\"message\":\"Teste de Debug Script\",\"email\":\"debug@teste.com\",\"type\":\"text\"}",
+  "isBase64Encoded": false
+}

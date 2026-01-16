@@ -63,7 +63,7 @@ async function carregarDuvidas() {
     if(refreshText) refreshText.innerText = "Sincronizando...";
 
     try {
-        const response = await fetch(`${window.API_CONFIG.baseURL}${window.API_CONFIG.endpoints.duvidas}`);
+        const response = await window.authenticatedFetch(`${window.API_CONFIG.baseURL}${window.API_CONFIG.endpoints.duvidas}`);
         let items = await response.json();
         if (!Array.isArray(items)) items = [];
 
@@ -165,7 +165,7 @@ function renderizarLista(items) {
 
 async function marcarComoRespondida(messageId, timestamp) {
     try {
-        await fetch(`${window.API_CONFIG.baseURL}/status`, {
+        await window.authenticatedFetch(`${window.API_CONFIG.baseURL}/status`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ messageId, timestamp, status: 'Respondida' })
@@ -177,7 +177,7 @@ async function marcarComoRespondida(messageId, timestamp) {
 async function rejeitarMensagem(messageId, timestamp) {
     if(!confirm('Confirmar correção de IA: Esta mensagem não é uma dúvida?')) return;
     try {
-        await fetch(`${window.API_CONFIG.baseURL}/feedback`, {
+        await window.authenticatedFetch(`${window.API_CONFIG.baseURL}/feedback`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ messageId, timestamp, correctClassification: 'INTERACAO' })

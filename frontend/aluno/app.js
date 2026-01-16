@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const url = window.getApiUrl('mensagem');
-            const response = await fetch(url, {
+            const response = await window.authenticatedFetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: alunoNome, message: mensagem, type: 'text' })

@@ -1,0 +1,370 @@
+\documentclass[12pt, a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[portuguese]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{amssymb}
+\usepackage{listings}
+
+% Definição de JavaScript para o pacote listings
+\lstdefinelanguage{JavaScript}{
+  keywords={break, case, catch, continue, debugger, default, delete, do, else, false, finally, for, function, if, in, instanceof, new, null, return, switch, this, throw, true, try, typeof, var, void, while, with, const, let, await, async},
+  morecomment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  morestring=[b]',
+  morestring=[b]",
+  ndkeywords={class, export, boolean, throw, implements, import, this},
+  keywordstyle=\color{blue}\bfseries,
+  ndkeywordstyle=\color{darkgray}\bfseries,
+  identifierstyle=\color{black},
+  commentstyle=\color{purple}\ttfamily,
+  stringstyle=\color{red}\ttfamily,
+  sensitive=true
+}
+
+\geometry{top=3cm, bottom=2cm, left=3cm, right=2cm}
+
+% Configuração para código
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    backgroundcolor=\color{gray!10}
+}
+
+\title{\textbf{Projeto Final - M\'odulo RESTART + IA}\\ \large Smart Class Q\&A: Painel de D\'uvidas Inteligente\\ \small (Arquitetura Adaptada para AWS Sandbox)}
+
+\author{
+    \textbf{Equipe:} \\
+    Francine Luize Da Silva Rosa \\
+    Jos\'e Anderson Da Silva Costa \\
+    Kaique Lima Torres \\
+    Lucas Moreira De Araujo \\
+    Luciano Silveira Santos Filho \\
+    Samilly Soares Vieira \\
+    \vspace{0.5cm} \\ 
+    \textbf{Instrutor:} Heberton de Oliveira \\
+    \textbf{Turma:} BRSAO207
+}
+
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{tcolorbox}[colback=yellow!10!white,colframe=orange!75!black,title=\textbf{Adaptações para AWS Sandbox}]
+Este documento apresenta a arquitetura adaptada do projeto para funcionar dentro das limitações do ambiente AWS Sandbox do Labs Vocareum. As principais adaptações incluem:
+\begin{itemize}
+    \item Substituição do AWS Bedrock por \textbf{Amazon Comprehend} (disponível no Sandbox)
+    \item Uso obrigatório do \textbf{LabRole} para permissões IAM
+    \item Otimização para instâncias \textbf{t3.small} (limite do Sandbox)
+    \item Arquitetura serverless com \textbf{Lambda + API Gateway}
+\end{itemize}
+\end{tcolorbox}
+\newpage
+\tableofcontents
+\newpage
+
+\section{Identificação do Problema}
+
+\subsection{Ideia do Projeto}
+\textbf{Smart Class Q\&A:} Um sistema inteligente de filtragem e priorização de dúvidas para aulas online.
+
+\subsection{Descrição do Problema}
+Em ambientes de ensino remoto (como Google Meet, Zoom ou Teams), o chat de texto é frequentemente inundado por mensagens de interação social, cumprimentos ou comentários paralelos. Isso gera um "ruído" informacional que faz com que dúvidas técnicas importantes dos alunos passem despercebidas pelo instrutor. O resultado é a frustração do aluno, que se sente ignorado, e a sobrecarga cognitiva do professor, que precisa filtrar mensagens enquanto ensina.
+
+\subsection{Stakeholders}
+\begin{itemize}
+    \item \textbf{Alunos:} Que desejam ter suas dúvidas respondidas prontamente.
+    \item \textbf{Professores/Instrutores:} Que precisam focar no conteúdo sem perder o engajamento da turma.
+    \item \textbf{Instituições de Ensino:} Interessadas na qualidade e eficiência das aulas remotas.
+\end{itemize}
+
+\subsection{Justificativa}
+A implementação de um painel paralelo que utiliza Inteligência Artificial para separar automaticamente "Dúvidas" de "Conversas" garante que nenhuma pergunta técnica seja perdida. Isso democratiza a atenção do professor, reduz a ansiedade dos alunos e otimiza o tempo de aula.
+
+\section{Levantamento de Requisitos}
+
+\subsection{Requisitos Funcionais}
+\begin{enumerate}
+    \item O sistema deve permitir que alunos enviem mensagens de texto através de uma interface web simples.
+    \item O sistema deve processar cada mensagem utilizando \textbf{Amazon Comprehend} para análise de sentimento e classificação do conteúdo.
+    \item O sistema deve identificar se a mensagem é uma "Dúvida Técnica" ou "Interação Geral".
+    \item O sistema deve exibir para o professor um painel exclusivo contendo apenas as dúvidas filtradas.
+    \item O sistema deve permitir que o professor marque uma dúvida como "Respondida".
+    \item O sistema deve manter histórico persistente de todas as dúvidas para análise posterior.
+    \item O sistema deve identificar dúvidas não respondidas para planejamento de aulas futuras.
+\end{enumerate}
+
+\subsection{Requisitos Não Funcionais}
+\begin{itemize}
+    \item \textbf{Latência:} Processamento em menos de 3 segundos
+    \item \textbf{Disponibilidade:} Arquitetura serverless (Lambda) para alta disponibilidade
+    \item \textbf{Escalabilidade:} DynamoDB suportando picos simultâneos
+    \item \textbf{Usabilidade:} Interface intuitiva e não intrusiva
+    \item \textbf{Custo:} Otimizada para free tier do AWS Sandbox
+\end{itemize}
+
+\subsection{MVP (Produto Mínimo Viável)}
+\begin{itemize}
+    \item Interface web estática hospedada no S3
+    \item API Gateway + Lambda para processamento
+    \item Integração com Amazon Comprehend
+    \item Algoritmo de classificação por palavras-chave + sentimento
+    \item Armazenamento persistente no DynamoDB
+    \item Dashboard do professor com filtros
+    \item Funcionalidade de atualizar status
+\end{itemize}
+
+\section{Arquitetura Técnica}
+
+\subsection{Componentes da Solução}
+
+\subsubsection{Frontend}
+\begin{itemize}
+    \item HTML/CSS/JavaScript puro
+    \item Hospedado no Amazon S3 com website estático
+    \item Comunicação via API Gateway REST
+\end{itemize}
+
+\subsubsection{API Gateway}
+\begin{itemize}
+    \item Endpoint REST para receber mensagens
+    \item Endpoint para listar dúvidas
+    \item Endpoint para atualizar status
+    \item CORS habilitado
+\end{itemize}
+
+\subsubsection{AWS Lambda (com LabRole)}
+\begin{itemize}
+    \item \textbf{ProcessarMensagem:} Recebe, classifica e salva
+    \item \textbf{ListarDuvidas:} Consulta e retorna dúvidas
+    \item \textbf{AtualizarStatus:} Marca como respondida
+    \item Runtime: Node.js 18.x
+\end{itemize}
+
+\subsubsection{Amazon Comprehend}
+\begin{itemize}
+    \item DetectSentiment para análise emocional
+    \item DetectKeyPhrases para extração de termos
+    \item Idioma: Português (pt)
+\end{itemize}
+
+\subsubsection{Amazon DynamoDB}
+\begin{itemize}
+    \item Tabela: SmartClassMessages
+    \item Chave Primária: messageId (String)
+    \item Índice Secundário: status-timestamp-index
+\end{itemize}
+
+\subsection{Fluxo de Funcionamento}
+
+\textbf{Envio de Mensagem (Aluno):}
+\begin{enumerate}
+    \item Aluno digita mensagem no chat web
+    \item Frontend envia POST para API Gateway
+    \item Lambda ProcessarMensagem é acionada
+    \item Lambda chama Comprehend para análise
+    \item Aplica algoritmo de classificação
+    \item Salva no DynamoDB com status inicial
+    \item Retorna confirmação
+\end{enumerate}
+
+\textbf{Visualização (Professor):}
+\begin{enumerate}
+    \item Professor acessa dashboard
+    \item Frontend chama API Gateway (GET /duvidas)
+    \item Lambda ListarDuvidas consulta DynamoDB
+    \item Retorna apenas mensagens tipo "DÚVIDA"
+    \item Frontend exibe com filtros
+\end{enumerate}
+
+\section{Algoritmo de Classificação}
+
+O sistema utiliza uma abordagem h\'ibrida, combinando um classificador l\'exico local com an\'alise sem\^antica via Amazon Comprehend:
+
+\begin{lstlisting}[language=JavaScript, caption={Logica de Classificacao Hibrida}]
+// 1. Classificacao por Regras (Local)
+const classifier = new MessageClassifier();
+const classificationResult = classifier.classify(message);
+
+// 2. Validacao com IA (Amazon Comprehend)
+const aiValidation = await aiValidator.validate(message, 
+                     classificationResult.classification);
+
+// Resultado Final
+const finalStatus = aiValidation.classification;
+\end{lstlisting}
+
+O classificador local utiliza um sistema de pesos:
+\begin{itemize}
+    \item \textbf{Termos Técnicos (Peso 10.0):} Presença de palavras como "AWS", "Lambda", "S3", etc.
+    \item \textbf{Palavras de Questionamento (Peso 2.5):} "Como", "Porque", "Onde".
+    \item \textbf{Sinal de Pontuação (Peso 3.0):} Presença de ponto de interrogação.
+    \item \textbf{Threshold:} A mensagem precisa atingir um score mínimo (8.0) e obrigatoriamente conter termos técnicos para ser filtrada como dúvida.
+\end{itemize}
+
+\section{Planejamento \'Agil}
+
+\subsection{Organiza\c{c}\~ao em Sprints}
+
+\textbf{Sprint 1 - Infraestrutura (Conclu\'ida):}
+\begin{itemize}
+    \item Criar tabela DynamoDB
+    \item Configurar S3 bucket para frontend
+    \item Criar API Gateway com endpoints
+    \item Validar LabRole e permiss\~oes
+\end{itemize}
+
+\textbf{Sprint 2 - Backend e IA (Conclu\'ida):}
+\begin{itemize}
+    \item Desenvolver Lambda ProcessarMensagem
+    \item Integrar com Amazon Comprehend (Sentiment/KeyPhrases)
+    \item Implementar algoritmo de pesos no MessageClassifier
+    \item Testes unit\'arios do motor de classifica\c{c}\~ao
+\end{itemize}
+
+\textbf{Sprint 3 - Frontend (Conclu\'ida):}
+\begin{itemize}
+    \item Interface do aluno (Chat responsivo)
+    \item Dashboard do professor com cards de status
+    \item Integra\c{c}\~ao real com a API Gateway
+    \item Alerta sonoro para novas d\'uvidas
+\end{itemize}
+
+\textbf{Sprint 4 - Finaliza\c{c}\~ao (Conclu\'ida):}
+\begin{itemize}
+    \item Implementa\c{c}\~ao de Notifica\c{c}\~oes via SNS (Email Alerta)
+    \item Refinamento de UX/UI (Glassmorphism design e Responsividade)
+    \item Documenta\c{c}\~ao t\'ecnica completa e Diagramas (XML)
+    \item Preparado para o Pitch e Demonstra\c{c}\~ao ao vivo
+\end{itemize}
+
+\subsection{Distribui\c{c}\~ao de Tarefas}
+\begin{itemize}
+    \item \textbf{Sprint 1 (Infraestrutura):} Jos\'e Anderson
+    \item \textbf{Sprint 2 (Backend/IA):} Jos\'e Anderson
+    \item \textbf{Sprint 3 (Frontend):} Jos\'e Anderson
+    \item \textbf{Sprint 4 (Notifica\c{c}\~ao e Refinamento):} Jos\'e Anderson
+    \item \textbf{Documenta\c{c}\~ao e Pitch:} Jos\'e Anderson
+\end{itemize}
+
+\section{Estrutura do DynamoDB}
+
+A tabela \textbf{SmartClassMessages} utiliza uma estrutura otimizada para consultas de dashboard:
+
+\begin{lstlisting}[caption={Schema da Tabela DynamoDB}]
+{
+  "messageId": "1734892800000", // Partition Key
+  "timestamp": 1734892800000,    // Sort Key (Unix MS)
+  "email": "Jose Anderson",      // Identificador do Aluno
+  "message": "Como configurar o GSI?",
+  "classification": "DUVIDA",
+  "confidence": 95.5,
+  "status": "PENDING",           // GSI Partition Key
+  "ruleClassification": "DUVIDA",
+  "aiReason": "IA confirmou contexto tecnico AWS"
+}
+\end{lstlisting}
+
+\subsection{\'Indices (GSI)}
+O sistema utiliza um Global Secondary Index chamado \textbf{status-index} para permitir que o professor filtre mensagens pendentes ou respondidas de forma eficiente, sem a necessidade de um Scan completo na tabela.
+
+\section{Diferenciais Implementados}
+
+Al\'em dos requisitos b\'asicos, o projeto inclui:
+\begin{itemize}
+    \item \textbf{Filtro de Mensagens Vagas:} Mensagens curtas ou sem termos t\'ecnicos s\~ao rejeitadas com uma orienta\c{c}\~ao pedag\'ogica autom\'atica.
+    \item \textbf{Alerta Sonoro:} O painel do professor emite um som de notifica\c{c}\~ao em tempo real ao detectar uma nova d\'uvida classificada com alta confian\c{c}a.
+    \item \textbf{Interface Glassmorphism:} Design moderno com efeitos de transpar\^encia (Blur) e alta legibilidade.
+    \item \textbf{Fallback de IA:} Caso o Amazon Comprehend atinja limites do Sandbox, o sistema opera via classificador l\'exico local sem interrup\c{c}\~ao.
+\end{itemize}
+
+\section{Recursos Visuais}
+
+\subsection{Diagrama de Arquitetura}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{arquitetura.png}
+    \caption{Fluxo de Dados da Arquitetura}
+    \label{fig:arquitetura}
+\end{figure}
+
+
+\newpage
+\subsection{Board Kanban}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{kanban.png}
+    \caption{Visao geral do Kanban do projeto Smart Class Q\&A, destacando a distribuicao de prioridades, equipes responsaveis e o status das tarefas nas quatro colunas principais.}
+    \label{fig:kanban}
+\end{figure}
+
+A imagem do quadro Kanban, mostrou:
+
+\begin{itemize}
+    \item \textbf{Backlog:} 2 tarefas futuras
+    \item \textbf{To Do:} 3 tarefas planejadas
+    \item \textbf{Doing:} 4 tarefas em andamento
+    \item \textbf{Done:} 8 tarefas conclu\'idas
+    \item \textbf{Progresso:} 47\% completo
+\end{itemize}
+
+\section{Sugest\~oes de Melhorias e B\^onus}
+
+Caso haja tempo h\'abil antes da entrega final, as seguintes melhorias est\~ao mapeadas para implementa\c{c}\~ao:
+
+\begin{itemize}
+    \item \textbf{Dashboard de M\'etricas:} Inclus\~ao de um gr\'afico simples no painel do professor mostrando o volume de d\'uvidas vs. intera\c{c}\~oes sociais para an\'alise de engajamento da turma.
+    \item \textbf{Busca Avan\c{c}ada:} Implementa\c{c}\~ao de filtro por palavras-chave no frontend do professor para localizar d\'uvidas espec\'ificas rapidamente em aulas longas.
+    \item \textbf{Exporta\c{c}\~ao CSV:} Bot\~ao para baixar todas as d\'uvidas respondidas em formato CSV para posterior registro em di\'arios de classe.
+    \item \textbf{PWA (Progressive Web App):} Configura\c{c}\~ao de manifest e service worker para permitir a instala\c{c}\~ao do Dashboard do Professor como um aplicativo no desktop ou mobile.
+\end{itemize}
+
+\section{Considera\c{c}\~oes Finais}
+
+\subsection{Limita\c{c}\~oes do Sandbox}
+\begin{itemize}
+    \item \textbf{IAM Roles:} Uso obrigat\'orio do \textbf{LabRole} pr\'e-configurado para todas as fun\c{c}\~oes Lambda e servi\c{c}os.
+    \item \textbf{Tempo de Sess\~ao:} Limita\c{c}\~ao de 4 horas que exige automa\c{c}\~ao do deploy via scripts (infrastructure/deploy.sh).
+    \item \textbf{IA da AWS:} Amazon Comprehend validado com suporte total a Portugu\^es (pt) para Sentimento e Frases-chave.
+    \item \textbf{Rede:} Uso de Function URLs e API Gateway para contornar restri\c{c}\~oes de VPC.
+\end{itemize}
+
+\subsection{Alternativas Implementadas}
+\begin{itemize}
+    \item \textbf{Classifica\c{c}\~ao h\'ibrida:} Garante funcionalidade mesmo se houver lat\^encia ou indisponibilidade moment\^anea da IA.
+    \item \textbf{Arquitetura Serverless:} Elimina a necessidade de gerenciar inst\^ancias EC2, reduzindo a complexidade no Sandbox.
+    \item \textbf{Frontend no S3:} Hospedagem de baixo custo e alta disponibilidade sem necessidade de servidor web ativo.
+\end{itemize}
+
+\subsection{Pr\'oximos Passos (M\'odulo IA)}
+\begin{enumerate}
+    \item Autentica\c{c}\~ao com Cognito
+    \item Dashboard de an\'alise de tend\^encias
+    \item Notifica\c{c}\~oes via SNS
+    \item Machine Learning customizado
+\end{enumerate}
+
+\section{Conclus\~ao}
+
+O projeto Smart Class Q\&A foi adaptado com sucesso para funcionar no AWS Sandbox, mantendo todos os requisitos funcionais essenciais. A solu\c{c}\~ao demonstra conhecimento profundo de servi\c{c}os AWS, arquitetura serverless e desenvolvimento \'agil, oferecendo valor real para o contexto educacional.
+
+\vspace{1cm}
+
+\begin{center}
+\textbf{Documentação Completa:}\\
+\url{https://github.com/dessima/smartclass-qa}\\[0.5cm]
+\end{center}
+
+\end{document}
